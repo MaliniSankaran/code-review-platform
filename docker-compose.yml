@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  postgres:
+    container_name: crp-postgres
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: malini
+      POSTGRES_PASSWORD: bplhp123
+      POSTGRES_DB: codereview
+      PGDATA: /data/postgres
+    volumes:
+      - postgres_data:/data/postgres
+    ports:
+      - "5432:5432"
+    networks:
+      - crp-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  crp-network:
+    driver: bridge
