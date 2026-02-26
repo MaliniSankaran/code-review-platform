@@ -1,11 +1,15 @@
 package com.codereview.platform.service;
 
+import com.codereview.platform.dto.AuthResponse;
+import com.codereview.platform.dto.LoginRequest;
 import com.codereview.platform.dto.RegisterRequest;
 import com.codereview.platform.dto.UserDTO;
 import com.codereview.platform.entity.Role;
 import com.codereview.platform.entity.User;
+import com.codereview.platform.exception.InvalidCredentialsException;
 import com.codereview.platform.exception.ResourceAlreadyExistsException;
 import com.codereview.platform.repository.UserRepository;
+import com.codereview.platform.security.JwtTokenProvider;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +23,7 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JwtTokenProvider jwtTokenProvider;
 
     @Transactional
     public UserDTO register(RegisterRequest request){
@@ -58,6 +63,44 @@ public class AuthService {
                 .build();
 
         return userDTO;
+    }
+
+    //Login
+    public AuthResponse login(LoginRequest request){
+        log.info("Login attempt : {}", request.getEmail());
+
+        //Find user
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid email or password"));
+
+        //Verify password
+        if(!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())){
+            throw new InvalidCredentialsException("Invalid email or password");
+        }
+
+        //Generate token and return
+        String token = jwtTokenProvider.generateToken(user);
+
+        //Convert user to DTO
+        UserDTO userDTO = UserDTO.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .fullName(user.getFullName())
+                .role(user.getRole())
+                .build();
+
+        //Build auth response
+        AuthResponse response = AuthResponse.builder()
+                .accessToken(token)
+                .tokenType("Bearer")
+                .expiresIn(86400L)
+                .user(userDTO)
+                .build();
+
+        log.info("User logged in successfully: {}", user.getEmail());
+
+        return response;
     }
 
 }

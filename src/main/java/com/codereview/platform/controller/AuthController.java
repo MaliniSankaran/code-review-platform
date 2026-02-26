@@ -1,5 +1,7 @@
 package com.codereview.platform.controller;
 
+import com.codereview.platform.dto.AuthResponse;
+import com.codereview.platform.dto.LoginRequest;
 import com.codereview.platform.dto.RegisterRequest;
 import com.codereview.platform.dto.UserDTO;
 import com.codereview.platform.service.AuthService;
@@ -35,6 +37,14 @@ public class AuthController {
     @GetMapping("/health")
     public ResponseEntity<String> getHealth(){
         return ResponseEntity.ok("Auth service is running");
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<AuthResponse> login (@Valid @RequestBody LoginRequest request){
+
+        log.info("Received login request for email: {}",request.getEmail());
+        AuthResponse authResponse = authService.login(request);
+        return ResponseEntity.ok(authResponse);
     }
 
 }
