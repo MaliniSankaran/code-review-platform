@@ -4,12 +4,14 @@ import com.codereview.platform.dto.AuthResponse;
 import com.codereview.platform.dto.LoginRequest;
 import com.codereview.platform.dto.RegisterRequest;
 import com.codereview.platform.dto.UserDTO;
+import com.codereview.platform.security.UserPrincipal;
 import com.codereview.platform.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -45,6 +47,14 @@ public class AuthController {
         log.info("Received login request for email: {}",request.getEmail());
         AuthResponse authResponse = authService.login(request);
         return ResponseEntity.ok(authResponse);
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<UserDTO> getCurrentUser(@AuthenticationPrincipal UserPrincipal userPrincipal){
+
+        log.info("Fetching current user: {}",userPrincipal.getId());
+        UserDTO userDTO = authService.getCurrentUser(userPrincipal.getId());
+        return ResponseEntity.ok(userDTO);
     }
 
 }

@@ -8,6 +8,7 @@ import com.codereview.platform.entity.Role;
 import com.codereview.platform.entity.User;
 import com.codereview.platform.exception.InvalidCredentialsException;
 import com.codereview.platform.exception.ResourceAlreadyExistsException;
+import com.codereview.platform.exception.ResourceNotFoundException;
 import com.codereview.platform.repository.UserRepository;
 import com.codereview.platform.security.JwtTokenProvider;
 import jakarta.transaction.Transactional;
@@ -54,15 +55,15 @@ public class AuthService {
         log.info("User registered successfully: {}", user.getEmail());
 
         //Convert entity into DTO
-        UserDTO userDTO = UserDTO.builder()
-                .id(user.getId())
-                .username(user.getUsername())
-                .email(user.getEmail())
-                .fullName(user.getFullName())
-                .role(user.getRole())
-                .build();
+//        UserDTO userDTO = UserDTO.builder()
+//                .id(user.getId())
+//                .username(user.getUsername())
+//                .email(user.getEmail())
+//                .fullName(user.getFullName())
+//                .role(user.getRole())
+//                .build();
 
-        return userDTO;
+        return mapToDTO(user);
     }
 
     //Login
@@ -82,13 +83,7 @@ public class AuthService {
         String token = jwtTokenProvider.generateToken(user);
 
         //Convert user to DTO
-        UserDTO userDTO = UserDTO.builder()
-                .id(user.getId())
-                .username(user.getUsername())
-                .email(user.getEmail())
-                .fullName(user.getFullName())
-                .role(user.getRole())
-                .build();
+        UserDTO userDTO = mapToDTO(user);
 
         //Build auth response
         AuthResponse response = AuthResponse.builder()
@@ -101,6 +96,22 @@ public class AuthService {
         log.info("User logged in successfully: {}", user.getEmail());
 
         return response;
+    }
+
+    private UserDTO mapToDTO(User user) {
+        return UserDTO.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .fullName(user.getFullName())
+                .role(user.getRole())
+                .build();
+    }
+
+    public UserDTO getCurrentUser(Long userId){
+        User user = userRepository.findById(userId)
+                .orElseThrow(()->new ResourceNotFoundException("User not found with id: "+userId));
+        return mapToDTO(user);
     }
 
 }
