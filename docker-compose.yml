@@ -6,7 +6,7 @@ services:
     image: postgres:15-alpine
     environment:
       POSTGRES_USER: malini
-      POSTGRES_PASSWORD: bplhp123
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: codereview
       PGDATA: /data/postgres
     volumes:
@@ -15,6 +15,22 @@ services:
       - "5432:5432"
     networks:
       - crp-network
+    restart: unless-stopped
+
+  app:
+    container_name: crp-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DB_HOST: crp-postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "8080:8080"
+    networks:
+      - crp-network
+    depends_on:
+      - postgres
     restart: unless-stopped
 
 volumes:
