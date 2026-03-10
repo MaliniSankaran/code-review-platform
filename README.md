@@ -91,17 +91,17 @@ docker-compose up -d postgres
 
 ```
 ┌─────────────────────────────┐
-│          users               │
+│          users              │
 ├─────────────────────────────┤
 │ id          BIGSERIAL (PK)  │
-│ username    VARCHAR UNIQUE   │
-│ email       VARCHAR UNIQUE   │
-│ password_hash VARCHAR        │
-│ full_name   VARCHAR          │
-│ role        VARCHAR          │
-│ is_active   BOOLEAN          │
-│ created_at  TIMESTAMP        │
-│ updated_at  TIMESTAMP        │
+│ username    VARCHAR UNIQUE  │
+│ email       VARCHAR UNIQUE  │
+│ password_hash VARCHAR       │
+│ full_name   VARCHAR         │
+│ role        VARCHAR         │
+│ is_active   BOOLEAN         │
+│ created_at  TIMESTAMP       │
+│ updated_at  TIMESTAMP       │
 └─────────────────────────────┘
 ```
 
