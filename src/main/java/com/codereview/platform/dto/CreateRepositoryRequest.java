@@ -1,7 +1,9 @@
 package com.codereview.platform.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import lombok.Data;
 
+@Data
 public class CreateRepositoryRequest {
 
     @NotBlank(message="Repository name is required")
