@@ -1,0 +1,128 @@
+package com.codereview.platform.service;
+
+import com.codereview.platform.dto.CodeFileDTO;
+import com.codereview.platform.entity.CodeFile;
+import com.codereview.platform.entity.CodeRepository;
+import com.codereview.platform.entity.User;
+import com.codereview.platform.exception.ResourceNotFoundException;
+import com.codereview.platform.repository.CodeFileRepository;
+import com.codereview.platform.repository.RepoRepository;
+import com.codereview.platform.repository.UserRepository;
+import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
+
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class CodeFileService {
+
+    private final CodeFileRepository codeFileRepository;
+    private final RepoRepository repoRepository;
+    private final UserRepository userRepository;
+    private final FileStorageService fileStorageService;
+
+    @Transactional
+    public CodeFileDTO uploadFile(Long repoId, Long userId, MultipartFile file) {
+
+        log.info("Uploading file '{}' to repo {} by user {}", file.getOriginalFilename(), repoId, userId);
+
+        //Verify repo exists
+        CodeRepository repo = repoRepository.findById(repoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Repository not found with id " + repoId));
+
+        //Only repo owner can upload
+        if (!repo.getOwner().getId().equals(userId)) {
+            throw new AccessDeniedException("You don't have permission to upload to this repository");
+        }
+            // Verify user exists
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new ResourceNotFoundException("User not found with id " + userId));
+
+
+            //Build the MinIO path : repos/{repoId}/{fileName}
+            String path = "repos/" + repoId + "/" + file.getOriginalFilename();
+
+            //Store bytes in MinIO
+            fileStorageService.uploadFile(path, file);
+
+            //Save metadata in PostgreSQL
+            CodeFile codeFile = CodeFile.builder()
+                    .fileName(file.getOriginalFilename())
+                    .filePath(path)
+                    .contentType(file.getContentType())
+                    .size(file.getSize())
+                    .codeRepository(repo)
+                    .uploadedBy(user)
+                    .build();
+
+            codeFile = codeFileRepository.save(codeFile);
+
+            log.info("File uploaded with id: {}", codeFile.getId());
+            return mapToDTO(codeFile);
+
+        }
+
+    public List<CodeFileDTO> getFilesByRepository(Long repoId) {
+
+        log.info("Fetching files for repo {}", repoId);
+
+        //Verify repo exists
+        repoRepository.findById(repoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Repository not found with id " + repoId));
+
+        List<CodeFile> files = codeFileRepository.findByCodeRepositoryId(repoId);
+        return files.stream()
+                .map(this::mapToDTO)
+                .toList();
+    }
+
+    public CodeFileDTO getFileById(Long fileId) {
+        log.info("Fetching file {}", fileId);
+        CodeFile file = codeFileRepository.findById(fileId)
+                .orElseThrow(() -> new ResourceNotFoundException("File not found with id: " + fileId));
+        return mapToDTO(file);
+    }
+
+    @Transactional
+    public void deleteFile(Long fileId, Long userId) {
+        log.info("Deleting file {} by user {}", fileId, userId);
+
+        CodeFile file = codeFileRepository.findById(fileId)
+                .orElseThrow(() -> new ResourceNotFoundException("File not found with id: " + fileId));
+
+        // Only repo owner can delete files
+        if (!file.getCodeRepository().getOwner().getId().equals(userId)) {
+            throw new AccessDeniedException("You don't have permission to delete this file");
+        }
+
+        // Delete from MinIO first, then from database
+        fileStorageService.deleteFile(file.getFilePath());
+        codeFileRepository.delete(file);
+
+        log.info("File {} deleted", fileId);
+    }
+
+    private CodeFileDTO mapToDTO (CodeFile codeFile){
+        return CodeFileDTO.builder()
+                .id(codeFile.getId())
+                .fileName(codeFile.getFileName())
+                .filePath(codeFile.getFilePath())
+                .contentType(codeFile.getContentType())
+                .size(codeFile.getSize())
+                .repositoryId(codeFile.getCodeRepository().getId())
+                .repositoryName(codeFile.getCodeRepository().getName())
+                .uploadedById(codeFile.getUploadedBy().getId())
+                .uploadedByUsername(codeFile.getUploadedBy().getUsername())
+                .createdAt(codeFile.getCreatedAt())
+                .updatedAt(codeFile.getUpdatedAt())
+                .build();
+    }
+
+}

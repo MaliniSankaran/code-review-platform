@@ -1,37 +1,66 @@
 package com.codereview.platform.controller;
 
+import com.codereview.platform.dto.CodeFileDTO;
+import com.codereview.platform.security.UserPrincipal;
+import com.codereview.platform.service.CodeFileService;
 import com.codereview.platform.service.FileStorageService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 @RestController
-@RequestMapping("/api/files")
+@RequestMapping("/api/repositories/{repoId}/files")
 @RequiredArgsConstructor
+@Slf4j
 public class FileController {
 
+    private final CodeFileService codeFileService;
     private final FileStorageService fileStorageService;
 
-    @PostMapping("/upload")
-    public ResponseEntity<String> uploadFile(
-            @RequestParam("file")MultipartFile file,
-            @RequestParam("path") String path
-            ){
-        String storedPath = fileStorageService.uploadFile(path, file);
-        return ResponseEntity.ok("File uploaded to: "+storedPath);
+    @PostMapping
+    public ResponseEntity<CodeFileDTO> uploadFile(
+            @PathVariable Long repoId,
+            @RequestParam("file") MultipartFile file,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        CodeFileDTO codeFile = codeFileService.uploadFile(repoId, userPrincipal.getId(), file);
+        return ResponseEntity.status(HttpStatus.CREATED).body(codeFile);
     }
 
-    @GetMapping("/download")
-    public ResponseEntity<InputStreamResource> downloadFile(
-            @RequestParam("path")  String path
-    ){
+    @GetMapping
+    public ResponseEntity<List<CodeFileDTO>> getFiles(@PathVariable Long repoId) {
+        List<CodeFileDTO> files = codeFileService.getFilesByRepository(repoId);
+        return ResponseEntity.ok(files);
+    }
+
+    @GetMapping("/{fileId}")
+    public ResponseEntity<CodeFileDTO> getFile(@PathVariable Long fileId) {
+        CodeFileDTO file = codeFileService.getFileById(fileId);
+        return ResponseEntity.ok(file);
+    }
+
+    @GetMapping("/{fileId}/download")
+    public ResponseEntity<InputStreamResource> downloadFile(@PathVariable Long fileId) {
+        CodeFileDTO file = codeFileService.getFileById(fileId);
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\""+path+"\"")
-                .body(new InputStreamResource(fileStorageService.downloadFile(path)));
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + file.getFileName() + "\"")
+                .body(new InputStreamResource(fileStorageService.downloadFile(file.getFilePath())));
+    }
+
+    @DeleteMapping("/{fileId}")
+    public ResponseEntity<Void> deleteFile(
+            @PathVariable Long fileId,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        codeFileService.deleteFile(fileId, userPrincipal.getId());
+        return ResponseEntity.noContent().build();
     }
 }
