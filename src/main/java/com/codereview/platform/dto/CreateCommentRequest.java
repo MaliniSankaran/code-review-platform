@@ -1,0 +1,15 @@
+package com.codereview.platform.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import lombok.Data;
+
+@Data
+public class CreateCommentRequest {
+
+    @NotBlank(message = "Comment content is required")
+    private String content;
+
+    private Long codeFileId;
+
+    private Integer lineNumber;
+}
