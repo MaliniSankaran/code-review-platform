@@ -54,15 +54,6 @@ public class AuthService {
 
         log.info("User registered successfully: {}", user.getEmail());
 
-        //Convert entity into DTO
-//        UserDTO userDTO = UserDTO.builder()
-//                .id(user.getId())
-//                .username(user.getUsername())
-//                .email(user.getEmail())
-//                .fullName(user.getFullName())
-//                .role(user.getRole())
-//                .build();
-
         return mapToDTO(user);
     }
 
