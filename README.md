@@ -24,12 +24,12 @@ Currently a monolithic Spring Boot application, evolving toward microservices ar
 ┌───────────────────────────────────────────────────────┐
 │ Docker (crp-network)                                  │
 │                                                       │
-│ ┌──────────────┐  ┌──────────────┐  ┌──────────────┐ │
-│ │  crp-app     │  │ crp-postgres │  │  crp-minio   │ │
-│ │  Spring Boot │─►│ PostgreSQL 15│  │  Object Store │ │
-│ │  Port 8080   │  │ Port 5432    │  │  Port 9000   │ │
-│ │              │─►│              │  │  Console 9001│ │
-│ └──────────────┘  └──────────────┘  └──────────────┘ │
+│ ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
+│ │  crp-app     │  │ crp-postgres │  │  crp-minio   │  │
+│ │  Spring Boot │─►│ PostgreSQL 15│  │  Object Store│  │
+│ │  Port 8080   │  │ Port 5432    │  │  Port 9000   │  │
+│ │              │─►│              │  │  Console 9001│  │
+│ └──────────────┘  └──────────────┘  └──────────────┘  │
 │                                                       │
 └───────────────────────────────────────────────────────┘
 ```
@@ -139,7 +139,7 @@ docker-compose up -d postgres minio
 │ password_hash    │   ├─│ owner_id    (FK) │   │ │ content_type     │
 │ full_name        │   │ │ language         │   │ │ size             │
 │ role             │   │ │ is_public        │   ├─│ repository_id(FK)│
-│ is_active        │   │ │ created_at       │   │ │ uploaded_by_id(FK)│──┐
+│ is_active        │   │ │ created_at       │   │ │uploaded_by_id(FK)│──┐
 │ created_at       │   │ │ updated_at       │   │ │ created_at       │  │
 │ updated_at       │   │ └──────────────────┘   │ │ updated_at       │  │
 └──────────────────┘   │                        │ └──────────────────┘  │
@@ -149,8 +149,8 @@ docker-compose up -d postgres minio
         │              │ │ id          (PK) │◄──┤ ├──────────────────┤  │
         │              │ │ title            │   │ │ id          (PK) │  │
         │              │ │ description      │   │ │ content (TEXT)   │  │
-        │              │ │ status           │   │ │ pull_request_id(FK)│ │
-        │              ├─│ repository_id(FK)│   │ │ code_file_id(FK) │─┘
+        │              │ │ status           │   │ │pull_request_id(FK)│ │
+        │              ├─│ repository_id(FK)│   │ │ code_file_id(FK) │ ─┘
         │              │ │ author_id   (FK) │──┘  │ line_number      │
         └──────────────┤ │ created_at       │     │ author_id   (FK) │
                        │ │ updated_at       │     │ created_at       │

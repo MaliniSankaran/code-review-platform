@@ -8,6 +8,8 @@ import com.codereview.platform.exception.ResourceAlreadyExistsException;
 import com.codereview.platform.exception.ResourceNotFoundException;
 import com.codereview.platform.repository.RepoRepository;
 import com.codereview.platform.repository.UserRepository;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -63,13 +65,15 @@ public class RepositoryService {
     }
 
     //Get specific repo by Id
+    @Cacheable(value = "repositories", key = "#repoId")
     public RepositoryDTO getRepositoryById(Long repoId){
-        log.info("Fetching repositor {}",repoId);
+        log.info("Fetching repository {}",repoId);
         CodeRepository repo = repoRepository.findById(repoId)
                 .orElseThrow(() -> new ResourceNotFoundException("Repository not found with id: " + repoId));
         return mapToDTO(repo);
     }
 
+    @CacheEvict(value = "repositories", key = "#repoId")
     @Transactional
     public RepositoryDTO updateRepository(Long repoId, CreateRepositoryRequest request, Long userId)  {
         log.info("Updating repository {} by user {}", repoId, userId);
@@ -93,6 +97,7 @@ public class RepositoryService {
         return mapToDTO(repo);
     }
 
+    @CacheEvict(value = "repositories", key = "#repoId")
     @Transactional
     public void deleteRepository(Long repoId, Long userId){
         log.info("Deleting repository {} by user {}", repoId, userId);

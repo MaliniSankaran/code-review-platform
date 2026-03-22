@@ -16,12 +16,16 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: 6379
 
 server:
   port: 8080
 
 jwt:
-  secret: your-256-bit-secret-key-change-in-production-must-be-very-long-string-for-security-purposes
+  secret: ${JWT_SECRET:default-dev-secret-key-change-in-production-must-be-very-long-string}
   expiration: 86400000  # 24 hours in milliseconds
 
 minio:
@@ -29,3 +33,4 @@ minio:
   access-key: minioadmin
   secret-key: ${MINIO_ROOT_PASSWORD}
   bucket-name: code-files
+
