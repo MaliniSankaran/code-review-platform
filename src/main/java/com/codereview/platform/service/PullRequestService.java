@@ -14,6 +14,8 @@ import com.codereview.platform.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
@@ -29,7 +31,10 @@ public class PullRequestService {
     private final RepoRepository repoRepository;
     private final UserRepository userRepository;
 
+
     //Create method
+    @CacheEvict(value = "repo-prs", key = "#repoId")
+    @Transactional
     public PullRequestDTO createPullRequest(Long repoId, Long authorId, CreatePRRequest request) {
 
         log.info("Creating PR '{}' in repo {} by user {}", request.getTitle(), repoId, authorId);
@@ -54,6 +59,7 @@ public class PullRequestService {
     }
 
     //Read methods
+    @Cacheable(value = "repo-prs", key = "#repoId")
     public List<PullRequestDTO> getPRsByRepository(Long repoId) {
 
         log.info("Fetching PRs for repo {}", repoId);
@@ -75,6 +81,7 @@ public class PullRequestService {
                 .toList();
     }
 
+    @Cacheable(value="pull-requests", key ="#prId")
     public PullRequestDTO getPRById(Long prId){
         log.info("Fetching PRs  {}", prId);
         PullRequest pr = pullRequestRepository.findById(prId)
@@ -83,6 +90,7 @@ public class PullRequestService {
     }
 
     //Update PR status
+    @CacheEvict(value = "pull-requests", key = "#prId")
     @Transactional
     public PullRequestDTO updatePRStatus(Long prId, String newStatus, Long userId){
 
@@ -107,6 +115,7 @@ public class PullRequestService {
     }
 
     //Delete method
+    @CacheEvict(value = "pull-requests", key = "#prId")
     @Transactional
     public void deletePR(Long prId, Long userId) {
         log.info("Deleting PR {} by user {}", prId, userId);

@@ -13,6 +13,7 @@ import org.springframework.cache.annotation.Cacheable;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
@@ -25,6 +26,7 @@ public class RepositoryService {
     private final RepoRepository repoRepository;
     private final UserRepository userRepository;
 
+    @CacheEvict(value="owner-repos", key="#ownerId")
     @Transactional
     public RepositoryDTO createRepository(CreateRepositoryRequest request, Long ownerId){
 
@@ -55,9 +57,10 @@ public class RepositoryService {
         return mapToDTO(repo);
     }
 
+    @Cacheable(value="owner-repos", key="#ownerId")
     //Get all repos for a user
     public List<RepositoryDTO> getRepositoriesByOwner(Long ownerId){
-        log.info("Fetchig reposiotories fr user {}", ownerId);
+        log.info("Fetching repositories for user {}", ownerId);
         List<CodeRepository> repos = repoRepository.findByOwnerId((ownerId));
         return repos.stream()
                 .map(this::mapToDTO)
@@ -97,7 +100,10 @@ public class RepositoryService {
         return mapToDTO(repo);
     }
 
-    @CacheEvict(value = "repositories", key = "#repoId")
+    @Caching(evict = {
+            @CacheEvict(value = "repositories", key = "#repoId"),
+            @CacheEvict(value = "owner-repos", key = "#userId")
+    })
     @Transactional
     public void deleteRepository(Long repoId, Long userId){
         log.info("Deleting repository {} by user {}", repoId, userId);

@@ -14,6 +14,7 @@ import com.codereview.platform.security.JwtTokenProvider;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -99,7 +100,9 @@ public class AuthService {
                 .build();
     }
 
+    @Cacheable(value = "users", key = "#userId")
     public UserDTO getCurrentUser(Long userId){
+        log.info("Fetching user {}", userId);
         User user = userRepository.findById(userId)
                 .orElseThrow(()->new ResourceNotFoundException("User not found with id: "+userId));
         return mapToDTO(user);
