@@ -5,6 +5,8 @@ import com.codereview.platform.entity.CodeFile;
 import com.codereview.platform.entity.CodeRepository;
 import com.codereview.platform.entity.User;
 import com.codereview.platform.exception.ResourceNotFoundException;
+import com.codereview.platform.processor.FileProcessor;
+import com.codereview.platform.processor.FileProcessorFactory;
 import com.codereview.platform.repository.CodeFileRepository;
 import com.codereview.platform.repository.RepoRepository;
 import com.codereview.platform.repository.UserRepository;
@@ -15,7 +17,9 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 
 @Service
@@ -27,6 +31,7 @@ public class CodeFileService {
     private final RepoRepository repoRepository;
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
+    private final FileProcessorFactory fileProcessorFactory;
 
     @Transactional
     public CodeFileDTO uploadFile(Long repoId, Long userId, MultipartFile file) {
@@ -49,8 +54,29 @@ public class CodeFileService {
             //Build the MinIO path : repos/{repoId}/{fileName}
             String path = "repos/" + repoId + "/" + file.getOriginalFilename();
 
+            //Process file with factory pattern
+            String filename = file.getOriginalFilename();
+
+            if(filename!=null && fileProcessorFactory.isSupported(filename)){
+                try{
+                    FileProcessor processor = fileProcessorFactory.getFileProcessor(filename);
+                    String content = new String(file.getBytes());
+
+                    if(!processor.isValidFile(content)){
+                        log.warn("File {} failed validation", filename);
+                    }
+
+                    Map<String, Object> metadata = processor.extractMetadata(content);
+                    log.info("Extracted metadata for {}: {}", filename, metadata);
+
+                } catch (IOException e) {
+                    log.error("Error reading file content for processing: {}", e.getMessage());
+                }
+            }
+
             //Store bytes in MinIO
             fileStorageService.uploadFile(path, file);
+
 
             //Save metadata in PostgreSQL
             CodeFile codeFile = CodeFile.builder()
