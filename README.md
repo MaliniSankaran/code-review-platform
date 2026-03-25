@@ -4,7 +4,7 @@ Real-time collaborative code review platform with AI-powered analysis and micros
 
 ## Description
 
-A production-grade distributed system for code review, combining automated AI analysis with real-time human collaboration. Think GitHub Pull Requests + Google Docs + ChatGPT for code review.
+A production-grade distributed system for code review, combining automated AI analysis with real-time human collaboration, currently evolving from a monolithic core into a microservices architecture. Think GitHub Pull Requests + Google Docs + ChatGPT for code review.
 
 ### Key Features
 - JWT-based authentication with role-based access control
