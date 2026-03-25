@@ -6,6 +6,7 @@ import com.codereview.platform.entity.CodeFile;
 import com.codereview.platform.entity.Comment;
 import com.codereview.platform.entity.PullRequest;
 import com.codereview.platform.entity.User;
+import com.codereview.platform.event.CommentAddedEvent;
 import com.codereview.platform.exception.ResourceNotFoundException;
 import com.codereview.platform.repository.CodeFileRepository;
 import com.codereview.platform.repository.CommentRepository;
@@ -14,6 +15,7 @@ import com.codereview.platform.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
@@ -29,6 +31,7 @@ public class CommentService {
     private final PullRequestRepository pullRequestRepository;
     private final CodeFileRepository codeFileRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     //Create method
     @Transactional
@@ -60,6 +63,14 @@ public class CommentService {
         comment = commentRepository.save(comment);
 
         log.info("Comment created with id: {}", comment.getId());
+
+        eventPublisher.publishEvent(new CommentAddedEvent(
+                comment.getId(),
+                prId,
+                authorId,
+                comment.getAuthor().getUsername(),
+                comment.getLineNumber() != null
+        ));
 
         return mapToDTO(comment);
     }

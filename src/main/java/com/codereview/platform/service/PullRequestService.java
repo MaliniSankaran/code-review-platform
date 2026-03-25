@@ -7,6 +7,7 @@ import com.codereview.platform.entity.CodeRepository;
 import com.codereview.platform.entity.PRStatus;
 import com.codereview.platform.entity.PullRequest;
 import com.codereview.platform.entity.User;
+import com.codereview.platform.event.PRCreatedEvent;
 import com.codereview.platform.exception.ResourceNotFoundException;
 import com.codereview.platform.repository.PullRequestRepository;
 import com.codereview.platform.repository.RepoRepository;
@@ -16,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
@@ -30,6 +32,7 @@ public class PullRequestService {
     private final PullRequestRepository pullRequestRepository;
     private final RepoRepository repoRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
 
     //Create method
@@ -40,10 +43,10 @@ public class PullRequestService {
         log.info("Creating PR '{}' in repo {} by user {}", request.getTitle(), repoId, authorId);
 
         CodeRepository repo = repoRepository.findById(repoId)
-                .orElseThrow(()->new ResourceNotFoundException("Repository not found with id " + repoId));
+                .orElseThrow(() -> new ResourceNotFoundException("Repository not found with id " + repoId));
 
         User author = userRepository.findById(authorId)
-                .orElseThrow(()->new ResourceNotFoundException("User not found with id " + authorId));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id " + authorId));
 
         PullRequest pr = PullRequest.builder()
                 .title(request.getTitle())
@@ -55,6 +58,14 @@ public class PullRequestService {
         pr = pullRequestRepository.save(pr);
 
         log.info("PR created with id: {}", pr.getId());
+
+        eventPublisher.publishEvent(new PRCreatedEvent(
+                pr.getId(),
+                pr.getTitle(),
+                repoId,
+                authorId,
+                pr.getAuthor().getUsername()
+        ));
         return mapToDTO(pr);
     }
 
