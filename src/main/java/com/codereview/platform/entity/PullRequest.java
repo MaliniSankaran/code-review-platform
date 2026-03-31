@@ -11,7 +11,10 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "pull_requests")
+@Table(name = "pull_requests", indexes = {
+        @Index(name = "idx_pr_repository_id", columnList = "repository_id"),
+        @Index(name = "idx_pr_author_id", columnList = "author_id")
+})
 @Data
 @Builder
 @NoArgsConstructor

@@ -18,6 +18,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
@@ -78,10 +80,20 @@ public class PullRequestService {
         repoRepository.findById(repoId)
                 .orElseThrow(()->new ResourceNotFoundException("Repository not found with id " + repoId));
 
-        return pullRequestRepository.findByCodeRepositoryId(repoId).stream()
+        return pullRequestRepository.findByCodeRepositoryIdWithAuthor(repoId).stream()
                 .map(this::mapToDTO)
                 .toList();
 
+    }
+
+    public Page<PullRequestDTO> getPRsByRepositoryPaged(Long repoId, Pageable pageable) {
+        log.info("Fetching paged PRs for repo {}", repoId);
+
+        repoRepository.findById(repoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Repository not found with id " + repoId));
+
+        return pullRequestRepository.findByCodeRepositoryIdWithAuthorPaged(repoId, pageable)
+                .map(this::mapToDTO);
     }
 
     public List<PullRequestDTO> getPRsByAuthor(Long authorId) {

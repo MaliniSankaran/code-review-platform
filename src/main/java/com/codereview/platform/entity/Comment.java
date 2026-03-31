@@ -11,7 +11,9 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name="comments")
+@Table(name="comments", indexes = {
+        @Index(name = "idx_comment_pr_id", columnList = "pull_request_id")
+})
 @Data
 @Builder
 @NoArgsConstructor

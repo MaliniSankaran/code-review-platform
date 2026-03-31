@@ -7,6 +7,9 @@ import com.codereview.platform.service.PullRequestService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -34,6 +37,15 @@ public class PullRequestController {
     public ResponseEntity<List<PullRequestDTO>> getPRsByRepo(@PathVariable Long repoId) {
         List<PullRequestDTO> prs = pullRequestService.getPRsByRepository(repoId);
         return ResponseEntity.ok(prs);
+    }
+
+    @GetMapping("/paged")
+    public ResponseEntity<Page<PullRequestDTO>> getPRsByRepoPaged(
+            @PathVariable Long repoId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return ResponseEntity.ok(pullRequestService.getPRsByRepositoryPaged(repoId, pageable));
     }
 
     @GetMapping("/{prId}")
