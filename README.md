@@ -4,7 +4,7 @@ Real-time collaborative code review platform with AI-powered analysis and micros
 
 ## Description
 
-A production-grade distributed system for code review, combining automated AI analysis with real-time human collaboration, currently evolving from a monolithic core into a microservices architecture. Think GitHub Pull Requests + Google Docs + ChatGPT for code review.
+A production-grade distributed system for code review, combining automated AI analysis with real-time human collaboration, built as a microservices architecture. Think GitHub Pull Requests + Google Docs + ChatGPT for code review.
 
 ### Key Features
 - JWT-based authentication with role-based access control
@@ -12,39 +12,59 @@ A production-grade distributed system for code review, combining automated AI an
 - Pull request workflow with status tracking (OPEN, CLOSED, MERGED)
 - Three-level comment system (PR-level, file-level, line-level)
 - Ownership-based authorization across all resources
+- Shared common-lib module — centralized entities, exceptions, and DTOs
 - Centralized exception handling with consistent error responses
-- Fully containerized with Docker (multi-stage builds)
+- Fully containerized with Docker (multi-stage builds, monorepo build context)
 - Environment-based configuration with secret management
 
 ### Architecture
 
-Currently a monolithic Spring Boot application, evolving toward microservices architecture with event-driven communication and AI-powered code analysis.
+Three independently deployable Spring Boot services sharing a common library, all running on a Docker bridge network.
 
 ```
-┌───────────────────────────────────────────────────────┐
-│ Docker (crp-network)                                  │
-│                                                       │
-│ ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
-│ │  crp-app     │  │ crp-postgres │  │  crp-minio   │  │
-│ │  Spring Boot │─►│ PostgreSQL 15│  │  Object Store│  │
-│ │  Port 8080   │  │ Port 5432    │  │  Port 9000   │  │
-│ │              │─►│              │  │  Console 9001│  │
-│ └──────────────┘  └──────────────┘  └──────────────┘  │
-│                                                       │
-└───────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│ Docker (crp-network)                                                │
+│                                                                     │
+│  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐             │
+│  │ auth-service │   │ file-service │   │review-service│             │
+│  │  port 8081   │   │  port 8082   │   │  port 8080   │             │
+│  │  JWT · auth  │   │ repos · files│   │  analysis    │             │
+│  └──────┬───────┘   └──────┬───────┘   └──────┬───────┘             │
+│         │                  │                  │                     │
+│  ┌──────▼──────────────────▼──────────────────▼────────┐            │
+│  │                     common-lib                      │            │
+│  │         User · Role · exceptions · shared DTOs      │            │
+│  └─────────────────────────────────────────────────────┘            │
+│                                                                     │
+│  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐             │
+│  │ crp-postgres │   │  crp-redis   │   │  crp-minio   │             │
+│  │  port 5432   │   │  port 6379   │   │  port 9000   │             │
+│  └──────────────┘   └──────────────┘   └──────────────┘             │
+└─────────────────────────────────────────────────────────────────────┘
 ```
+
+### Service Responsibilities
+
+| Service | Port | Owns |
+|---------|------|------|
+| auth-service | 8081 | User registration, login, JWT issuance |
+| file-service | 8082 | Repositories, code files, pull requests, comments, MinIO |
+| review-service | 8080 | Code analysis, AI review (Week 7) |
+| common-lib | — | User, Role entities, shared exceptions, shared DTOs |
 
 ## Tech Stack
 
-| Category       | Technology                          |
-|----------------|-------------------------------------|
-| Backend        | Spring Boot 4.0.2, Spring Security  |
-| Database       | PostgreSQL 15                       |
-| Object Storage | MinIO (S3-compatible)               |
-| Authentication | JWT, BCrypt                         |
-| ORM            | Spring Data JPA, Hibernate          |
-| DevOps         | Docker, Docker Compose              |
-| Build          | Maven                               |
+| Category | Technology |
+|----------|------------|
+| Backend | Spring Boot 4.0.2, Spring Security |
+| Database | PostgreSQL 15 |
+| Cache | Redis 7 |
+| Object Storage | MinIO (S3-compatible) |
+| Authentication | JWT, BCrypt |
+| ORM | Spring Data JPA, Hibernate |
+| Shared Library | common-lib (Maven module) |
+| DevOps | Docker, Docker Compose |
+| Build | Maven (multi-stage Dockerfiles) |
 
 ## Getting Started
 
@@ -72,60 +92,71 @@ JWT_SECRET=your-256-bit-secret-key-here
 
 3. **Run with Docker (recommended)**
 ```bash
-docker-compose up -d --build
+docker-compose up --build
 ```
-This starts the application, PostgreSQL, and MinIO. Access the API at `http://localhost:8080` and MinIO console at `http://localhost:9001`.
+This starts all three services plus PostgreSQL, Redis, and MinIO.
 
 4. **Run locally (for development)**
+
+Start infrastructure first:
 ```bash
-docker-compose up -d postgres minio
-./mvnw spring-boot:run
+docker start crp-postgres crp-redis crp-minio
 ```
+Then run each service from IntelliJ using its respective `.env` file.
+
+> Note: Stop IntelliJ services before running `docker-compose up` — port conflicts will prevent containers from starting.
 
 ## API Endpoints
 
-### Authentication
-| Method | Endpoint             | Access  | Description              |
-|--------|----------------------|---------|--------------------------|
-| POST   | `/api/auth/register` | Public  | Register a new user      |
-| POST   | `/api/auth/login`    | Public  | Login and receive JWT    |
-| GET    | `/api/auth/me`       | Private | Get current user profile |
+### Authentication (auth-service — port 8081)
+| Method | Endpoint | Access | Description |
+|--------|----------|--------|-------------|
+| POST | `/api/auth/register` | Public | Register a new user |
+| POST | `/api/auth/login` | Public | Login and receive JWT |
+| GET | `/api/auth/me` | Private | Get current user profile |
 
-### Repositories
-| Method | Endpoint                   | Access  | Description              |
-|--------|----------------------------|---------|--------------------------|
-| POST   | `/api/repositories`        | Private | Create a repository      |
-| GET    | `/api/repositories`        | Private | List my repositories     |
-| GET    | `/api/repositories/{id}`   | Private | Get specific repository  |
-| PUT    | `/api/repositories/{id}`   | Private | Update repository (owner)|
-| DELETE | `/api/repositories/{id}`   | Private | Delete repository (owner)|
+### Repositories (file-service — port 8082)
+| Method | Endpoint | Access | Description |
+|--------|----------|--------|-------------|
+| POST | `/api/repositories` | Private | Create a repository |
+| GET | `/api/repositories` | Private | List my repositories |
+| GET | `/api/repositories/{id}` | Private | Get specific repository |
+| PUT | `/api/repositories/{id}` | Private | Update repository (owner) |
+| DELETE | `/api/repositories/{id}` | Private | Delete repository (owner) |
 
-### Files
-| Method | Endpoint                                          | Access  | Description              |
-|--------|---------------------------------------------------|---------|--------------------------|
-| POST   | `/api/repositories/{repoId}/files`                | Private | Upload file to repo      |
-| GET    | `/api/repositories/{repoId}/files`                | Private | List files in repo       |
-| GET    | `/api/repositories/{repoId}/files/{fileId}`       | Private | Get file metadata        |
-| GET    | `/api/repositories/{repoId}/files/{fileId}/download` | Private | Download file content |
-| DELETE | `/api/repositories/{repoId}/files/{fileId}`       | Private | Delete file (owner)      |
+### Files (file-service — port 8082)
+| Method | Endpoint | Access | Description |
+|--------|----------|--------|-------------|
+| POST | `/api/repositories/{repoId}/files` | Private | Upload file to repo |
+| GET | `/api/repositories/{repoId}/files` | Private | List files in repo |
+| GET | `/api/repositories/{repoId}/files/{fileId}` | Private | Get file metadata |
+| GET | `/api/repositories/{repoId}/files/{fileId}/download` | Private | Download file content |
+| DELETE | `/api/repositories/{repoId}/files/{fileId}` | Private | Delete file (owner) |
 
-### Pull Requests
-| Method | Endpoint                                             | Access  | Description              |
-|--------|------------------------------------------------------|---------|--------------------------|
-| POST   | `/api/repositories/{repoId}/pulls`                   | Private | Create a pull request    |
-| GET    | `/api/repositories/{repoId}/pulls`                   | Private | List PRs in repo         |
-| GET    | `/api/repositories/{repoId}/pulls/{prId}`            | Private | Get specific PR          |
-| PATCH  | `/api/repositories/{repoId}/pulls/{prId}/status`     | Private | Update PR status (author)|
-| DELETE | `/api/repositories/{repoId}/pulls/{prId}`            | Private | Delete PR (author)       |
+### Pull Requests (file-service — port 8082)
+| Method | Endpoint | Access | Description |
+|--------|----------|--------|-------------|
+| POST | `/api/repositories/{repoId}/pulls` | Private | Create a pull request |
+| GET | `/api/repositories/{repoId}/pulls` | Private | List PRs in repo |
+| GET | `/api/repositories/{repoId}/pulls/{prId}` | Private | Get specific PR |
+| PATCH | `/api/repositories/{repoId}/pulls/{prId}/status` | Private | Update PR status (author) |
+| DELETE | `/api/repositories/{repoId}/pulls/{prId}` | Private | Delete PR (author) |
 
-### Comments
-| Method | Endpoint                              | Access  | Description              |
-|--------|---------------------------------------|---------|--------------------------|
-| POST   | `/api/pulls/{prId}/comments`          | Private | Add comment to PR        |
-| GET    | `/api/pulls/{prId}/comments`          | Private | List comments on PR      |
-| DELETE | `/api/pulls/{prId}/comments/{commentId}` | Private | Delete comment (author)|
+### Comments (file-service — port 8082)
+| Method | Endpoint | Access | Description |
+|--------|----------|--------|-------------|
+| POST | `/api/pulls/{prId}/comments` | Private | Add comment to PR |
+| GET | `/api/pulls/{prId}/comments` | Private | List comments on PR |
+| DELETE | `/api/pulls/{prId}/comments/{commentId}` | Private | Delete comment (author) |
 
-> Detailed API documentation with request/response examples will be available via Swagger/OpenAPI.
+### Analysis (review-service — port 8080)
+| Method | Endpoint | Access | Description |
+|--------|----------|--------|-------------|
+| GET | `/api/analysis?language={language}&analysisType={type}` | Private | Analyse code by language and type |
+
+Available analysis types: `PERFORMANCE`, `SECURITY`, `STYLE`
+
+> Detailed API documentation with request/response examples will be available via Swagger/OpenAPI (Week 5).
 
 ## Database Schema
 
@@ -145,18 +176,44 @@ docker-compose up -d postgres minio
 └──────────────────┘   │                        │ └──────────────────┘  │
         ▲              │ ┌──────────────────┐   │                       │
         │              │ │  pull_requests   │   │ ┌──────────────────┐  │
-        │              │ ├──────────────────┤   │ │    comments      │  │
-        │              │ │ id          (PK) │◄──┤ ├──────────────────┤  │
-        │              │ │ title            │   │ │ id          (PK) │  │
-        │              │ │ description      │   │ │ content (TEXT)   │  │
-        │              │ │ status           │   │ │pull_request_id(FK)│ │
-        │              ├─│ repository_id(FK)│   │ │ code_file_id(FK) │ ─┘
-        │              │ │ author_id   (FK) │──┘  │ line_number      │
-        └──────────────┤ │ created_at       │     │ author_id   (FK) │
-                       │ │ updated_at       │     │ created_at       │
-                       │ └──────────────────┘     │ updated_at       │
+        │              │ ├──────────────────┤   │ ├──────────────────┤  │
+        │              │ │ id          (PK) │◄──┤ │    comments      │  │
+        │              │ │ title            │   │ ├──────────────────┤  │
+        │              │ │ description      │   │ │ id          (PK) │  │
+        │              │ │ status           │   │ │ content (TEXT)   │  │
+        │              ├─│ repository_id(FK)│   │ │pull_request_id(FK)│ │
+        │              │ │ author_id   (FK) │──┘  │ code_file_id(FK) │ ─┘
+        └──────────────┤ │ created_at       │     │ line_number      │
+                       │ │ updated_at       │     │ author_id   (FK) │
+                       │ └──────────────────┘     │ created_at       │
+                       │                          │ updated_at       │
                        │                          └──────────────────┘
                        └──── FK to users
+```
+
+> User and Role entities live in common-lib and are shared across all services via @EntityScan.
+
+## Project Structure
+
+```
+code-review-platform/
+├── auth-service/          ← Spring Boot, port 8081, com.codereview.auth
+│   ├── src/
+│   ├── Dockerfile
+│   └── pom.xml
+├── file-service/          ← Spring Boot, port 8082, com.codereview.file
+│   ├── src/
+│   ├── Dockerfile
+│   └── pom.xml
+├── review-service/        ← Spring Boot, port 8080, com.codereview.platform
+│   ├── src/
+│   ├── Dockerfile
+│   └── pom.xml
+├── common-lib/            ← Shared Maven module, com.codereview.common
+│   ├── src/
+│   └── pom.xml
+├── docker-compose.yml     ← All 6 containers on crp-network
+└── .env                   ← POSTGRES_PASSWORD, JWT_SECRET, MINIO_ROOT_PASSWORD
 ```
 
 ## Author
