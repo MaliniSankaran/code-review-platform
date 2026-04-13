@@ -3,7 +3,7 @@ package com.codereview.auth.controller;
 import com.codereview.auth.dto.AuthResponse;
 import com.codereview.auth.dto.LoginRequest;
 import com.codereview.auth.dto.RegisterRequest;
-import com.codereview.auth.dto.UserDTO;
+import  com.codereview.common.dto.UserDTO;
 import com.codereview.auth.security.UserPrincipal;
 import com.codereview.auth.service.AuthService;
 import jakarta.validation.Valid;

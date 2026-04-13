@@ -1,4 +1,5 @@
 package com.codereview.file.entity;
+import com.codereview.common.entity.User;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;

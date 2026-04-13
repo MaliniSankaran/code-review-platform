@@ -1,6 +1,6 @@
-package com.codereview.file.dto;
+package com.codereview.common.dto;
 
-import com.codereview.file.entity.Role;
+import com.codereview.common.entity.Role;
 import lombok.Builder;
 import lombok.Data;
 

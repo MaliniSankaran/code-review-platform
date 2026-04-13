@@ -1,8 +1,8 @@
 package com.codereview.file.security;
 
 //Spring Security's standard interface for user information
-import com.codereview.file.entity.Role;
-import com.codereview.file.entity.User;
+import  com.codereview.common.entity.Role;
+import  com.codereview.common.entity.User;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import org.springframework.security.core.GrantedAuthority;

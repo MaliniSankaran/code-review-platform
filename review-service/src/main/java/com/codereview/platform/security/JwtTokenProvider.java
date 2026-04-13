@@ -1,7 +1,7 @@
 package com.codereview.platform.security;
 
 
-import com.codereview.platform.entity.User;
+import  com.codereview.common.entity.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;

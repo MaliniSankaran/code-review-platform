@@ -1,5 +1,6 @@
 package com.codereview.platform.dto;
 
+import com.codereview.common.dto.UserDTO;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

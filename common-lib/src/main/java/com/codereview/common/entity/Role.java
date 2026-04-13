@@ -1,4 +1,4 @@
-package com.codereview.platform.entity;
+package com.codereview.common.entity;
 
 public enum Role {
     USER,

@@ -17,26 +17,6 @@ services:
       - crp-network
     restart: unless-stopped
 
-  app:
-    container_name: crp-app
-    build:
-      context: .
-      dockerfile: Dockerfile
-    environment:
-      DB_HOST: crp-postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      JWT_SECRET: ${JWT_SECRET}
-      MINIO_HOST: crp-minio
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      REDIS_HOST: crp-redis
-    ports:
-      - "8080:8080"
-    networks:
-      - crp-network
-    depends_on:
-      - postgres
-    restart: unless-stopped
-
   minio:
     container_name: crp-minio
     image: minio/minio
@@ -60,6 +40,67 @@ services:
       - "6379:6379"
     networks:
       - crp-network
+    restart: unless-stopped
+
+  auth-service:
+    container_name: crp-auth
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
+    environment:
+      DB_HOST: crp-postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+    ports:
+      - "8081:8081"
+    networks:
+      - crp-network
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  file-service:
+    container_name: crp-file
+    build:
+      context: .
+      dockerfile: file-service/Dockerfile
+    environment:
+      DB_HOST: crp-postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      MINIO_HOST: crp-minio
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      REDIS_HOST: crp-redis
+    ports:
+      - "8082:8082"
+    networks:
+      - crp-network
+    depends_on:
+      - postgres
+      - redis
+      - minio
+    restart: unless-stopped
+
+  review-service:
+    container_name: crp-review
+    build:
+      context: .
+      dockerfile: review-service/Dockerfile
+    environment:
+      DB_HOST: crp-postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      MINIO_HOST: crp-minio
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      REDIS_HOST: crp-redis
+    ports:
+      - "8080:8080"
+    networks:
+      - crp-network
+    depends_on:
+      - postgres
+      - redis
+      - minio
     restart: unless-stopped
 
 volumes:

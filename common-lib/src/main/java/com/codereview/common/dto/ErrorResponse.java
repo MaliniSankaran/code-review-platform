@@ -1,4 +1,4 @@
-package com.codereview.platform.dto;
+package com.codereview.common.dto;
 
 import lombok.Builder;
 import lombok.Data;

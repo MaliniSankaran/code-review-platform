@@ -1,10 +1,11 @@
-package com.codereview.file.exception;
+package com.codereview.common.exception;
 
+import com.codereview.common.exception.ResourceAlreadyExistsException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import com.codereview.file.dto.ErrorResponse;
+import com.codereview.common.dto.ErrorResponse;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;

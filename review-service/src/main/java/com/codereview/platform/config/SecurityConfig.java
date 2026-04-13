@@ -1,9 +1,10 @@
 package com.codereview.platform.config;
 
-import com.codereview.platform.entity.User;
+import  com.codereview.common.entity.User;
 import com.codereview.platform.security.CustomUserDetailService;
 import com.codereview.platform.security.JwtAuthenticationFilter;
 import com.codereview.platform.security.JwtTokenProvider;
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -39,6 +40,7 @@ public class SecurityConfig {
         http.csrf(csrf-> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth ->auth
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .anyRequest().authenticated()
                 )
