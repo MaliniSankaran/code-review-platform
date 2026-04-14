@@ -7,6 +7,7 @@ Real-time collaborative code review platform with AI-powered analysis and micros
 A production-grade distributed system for code review, combining automated AI analysis with real-time human collaboration, built as a microservices architecture. Think GitHub Pull Requests + Google Docs + ChatGPT for code review.
 
 ### Key Features
+- API Gateway as single entry point with centralized JWT validation, CORS, and request logging
 - JWT-based authentication with role-based access control
 - Repository and code file management with S3-compatible object storage
 - Pull request workflow with status tracking (OPEN, CLOSED, MERGED)
@@ -16,16 +17,25 @@ A production-grade distributed system for code review, combining automated AI an
 - Centralized exception handling with consistent error responses
 - Fully containerized with Docker (multi-stage builds, monorepo build context)
 - Environment-based configuration with secret management
+- Auto-generated API documentation via Swagger/OpenAPI on all services
 
 ### Architecture
 
-Three independently deployable Spring Boot services sharing a common library, all running on a Docker bridge network.
+Four independently deployable Spring Boot services sharing a common library, all running on a Docker bridge network. All client traffic flows through the API Gateway.
 
 ```
+                        Client (browser / Postman)
+                                   │
+                                   ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │ Docker (crp-network)                                                │
 │                                                                     │
-│  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐             │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │                 gateway-service  port 8888                  │    │
+│  │         JWT filter · CORS · logging · routing               │    │
+│  └──────────┬──────────────────┬──────────────────┬────────────┘    │
+│             │                  │                  │                 │
+│  ┌──────────▼───┐   ┌──────────▼───┐   ┌──────────▼───┐             │
 │  │ auth-service │   │ file-service │   │review-service│             │
 │  │  port 8081   │   │  port 8082   │   │  port 8080   │             │
 │  │  JWT · auth  │   │ repos · files│   │  analysis    │             │
@@ -47,6 +57,7 @@ Three independently deployable Spring Boot services sharing a common library, al
 
 | Service | Port | Owns |
 |---------|------|------|
+| gateway-service | 8888 | Routing, JWT validation, CORS, request logging |
 | auth-service | 8081 | User registration, login, JWT issuance |
 | file-service | 8082 | Repositories, code files, pull requests, comments, MinIO |
 | review-service | 8080 | Code analysis, AI review (Week 7) |
@@ -57,6 +68,8 @@ Three independently deployable Spring Boot services sharing a common library, al
 | Category | Technology |
 |----------|------------|
 | Backend | Spring Boot 4.0.2, Spring Security |
+| API Gateway | Spring Cloud Gateway 2025.1.1 |
+| API Docs | Springdoc OpenAPI 2.8.6 (Swagger UI) |
 | Database | PostgreSQL 15 |
 | Cache | Redis 7 |
 | Object Storage | MinIO (S3-compatible) |
@@ -108,14 +121,16 @@ Then run each service from IntelliJ using its respective `.env` file.
 
 ## API Endpoints
 
-### Authentication (auth-service — port 8081)
+All endpoints are accessible via the API Gateway at `http://localhost:8888`. Individual service ports are for local development only.
+
+### Authentication
 | Method | Endpoint | Access | Description |
 |--------|----------|--------|-------------|
 | POST | `/api/auth/register` | Public | Register a new user |
 | POST | `/api/auth/login` | Public | Login and receive JWT |
 | GET | `/api/auth/me` | Private | Get current user profile |
 
-### Repositories (file-service — port 8082)
+### Repositories
 | Method | Endpoint | Access | Description |
 |--------|----------|--------|-------------|
 | POST | `/api/repositories` | Private | Create a repository |
@@ -124,7 +139,7 @@ Then run each service from IntelliJ using its respective `.env` file.
 | PUT | `/api/repositories/{id}` | Private | Update repository (owner) |
 | DELETE | `/api/repositories/{id}` | Private | Delete repository (owner) |
 
-### Files (file-service — port 8082)
+### Files
 | Method | Endpoint | Access | Description |
 |--------|----------|--------|-------------|
 | POST | `/api/repositories/{repoId}/files` | Private | Upload file to repo |
@@ -133,7 +148,7 @@ Then run each service from IntelliJ using its respective `.env` file.
 | GET | `/api/repositories/{repoId}/files/{fileId}/download` | Private | Download file content |
 | DELETE | `/api/repositories/{repoId}/files/{fileId}` | Private | Delete file (owner) |
 
-### Pull Requests (file-service — port 8082)
+### Pull Requests
 | Method | Endpoint | Access | Description |
 |--------|----------|--------|-------------|
 | POST | `/api/repositories/{repoId}/pulls` | Private | Create a pull request |
@@ -142,21 +157,24 @@ Then run each service from IntelliJ using its respective `.env` file.
 | PATCH | `/api/repositories/{repoId}/pulls/{prId}/status` | Private | Update PR status (author) |
 | DELETE | `/api/repositories/{repoId}/pulls/{prId}` | Private | Delete PR (author) |
 
-### Comments (file-service — port 8082)
+### Comments
 | Method | Endpoint | Access | Description |
 |--------|----------|--------|-------------|
 | POST | `/api/pulls/{prId}/comments` | Private | Add comment to PR |
 | GET | `/api/pulls/{prId}/comments` | Private | List comments on PR |
 | DELETE | `/api/pulls/{prId}/comments/{commentId}` | Private | Delete comment (author) |
 
-### Analysis (review-service — port 8080)
+### Analysis
 | Method | Endpoint | Access | Description |
 |--------|----------|--------|-------------|
 | GET | `/api/analysis?language={language}&analysisType={type}` | Private | Analyse code by language and type |
 
 Available analysis types: `PERFORMANCE`, `SECURITY`, `STYLE`
 
-> Detailed API documentation with request/response examples will be available via Swagger/OpenAPI (Week 5).
+> Full interactive API documentation available via Swagger UI:
+> - Auth: `http://localhost:8081/swagger-ui/index.html`
+> - File/Repo/PR/Comments: `http://localhost:8082/swagger-ui/index.html`
+> - Analysis: `http://localhost:8080/swagger-ui/index.html`
 
 ## Database Schema
 
@@ -197,6 +215,10 @@ Available analysis types: `PERFORMANCE`, `SECURITY`, `STYLE`
 
 ```
 code-review-platform/
+├── gateway-service/       ← Spring Cloud Gateway, port 8888, com.codereview.gateway
+│   ├── src/
+│   ├── Dockerfile
+│   └── pom.xml
 ├── auth-service/          ← Spring Boot, port 8081, com.codereview.auth
 │   ├── src/
 │   ├── Dockerfile
@@ -212,7 +234,7 @@ code-review-platform/
 ├── common-lib/            ← Shared Maven module, com.codereview.common
 │   ├── src/
 │   └── pom.xml
-├── docker-compose.yml     ← All 6 containers on crp-network
+├── docker-compose.yml     ← All 7 containers on crp-network
 └── .env                   ← POSTGRES_PASSWORD, JWT_SECRET, MINIO_ROOT_PASSWORD
 ```
 
