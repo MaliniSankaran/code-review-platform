@@ -103,6 +103,26 @@ services:
       - minio
     restart: unless-stopped
 
+  gateway-service:
+    container_name: crp-gateway
+    build:
+      context: .
+      dockerfile: gateway-service/Dockerfile
+    environment:
+      AUTH_HOST: crp-auth
+      FILE_HOST: crp-file
+      REVIEW_HOST: crp-review
+      JWT_SECRET: ${JWT_SECRET}
+    ports:
+      - "8888:8888"
+    networks:
+      - crp-network
+    depends_on:
+      - auth-service
+      - file-service
+      - review-service
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   minio_data:

@@ -1,0 +1,49 @@
+spring:
+  application:
+    name: gateway-service
+  cloud:
+    gateway:
+      server:
+        webflux:
+          globalcors:
+            cors-configurations:
+              '[/**]':
+                allowedOrigins:
+                  - "http://localhost:3000"
+                allowedMethods:
+                  - GET
+                  - POST
+                  - PUT
+                  - PATCH
+                  - DELETE
+                  - OPTIONS
+                allowedHeaders:
+                  - "*"
+                allowCredentials: true
+                maxAge: 3600
+          routes:
+            - id: auth-service
+              uri: http://${AUTH_HOST:localhost}:8081
+              predicates:
+                - Path=/api/auth/**
+
+            - id: file-service
+              uri: http://${FILE_HOST:localhost}:8082
+              predicates:
+                - Path=/api/repositories/**, /api/pulls/**
+
+            - id: review-service
+              uri: http://${REVIEW_HOST:localhost}:8080
+              predicates:
+                - Path=/api/analysis/**
+
+server:
+  port: 8888
+
+jwt:
+  secret: ${JWT_SECRET}
+
+logging:
+  level:
+    com.codereview.gateway: INFO
+    org.springframework.cloud.gateway: INFO
