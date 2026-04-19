@@ -9,6 +9,7 @@ import com.codereview.file.entity.PullRequest;
 import  com.codereview.common.entity.User;
 import com.codereview.file.event.PRCreatedEvent;
 import  com.codereview.common.exception.ResourceNotFoundException;
+import com.codereview.file.event.PRUpdatedEvent;
 import com.codereview.file.repository.PullRequestRepository;
 import com.codereview.file.repository.RepoRepository;
 import com.codereview.file.repository.UserRepository;
@@ -35,6 +36,7 @@ public class PullRequestService {
     private final RepoRepository repoRepository;
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final KafkaProducerService kafkaProducerService;
 
 
     //Create method
@@ -61,13 +63,20 @@ public class PullRequestService {
 
         log.info("PR created with id: {}", pr.getId());
 
-        eventPublisher.publishEvent(new PRCreatedEvent(
+        PRCreatedEvent event = new PRCreatedEvent(
                 pr.getId(),
                 pr.getTitle(),
                 repoId,
                 authorId,
                 pr.getAuthor().getUsername()
-        ));
+        );
+
+        // In-process (Observer pattern)
+        eventPublisher.publishEvent(event);
+
+        // Distributed (Kafka)
+        kafkaProducerService.publishPRCreated(event);
+
         return mapToDTO(pr);
     }
 
@@ -134,6 +143,18 @@ public class PullRequestService {
             }
         pr = pullRequestRepository.save(pr);
         log.info("PR {} status updated to {}", prId, newStatus);
+
+        PRUpdatedEvent event = new PRUpdatedEvent(
+                pr.getId(),
+                pr.getTitle(),
+                pr.getCodeRepository().getId(),
+                pr.getAuthor().getId(),
+                pr.getAuthor().getUsername(),
+                newStatus
+        );
+
+        kafkaProducerService.publishPRUpdated(event);
+
         return mapToDTO(pr);
     }
 

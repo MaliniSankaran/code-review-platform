@@ -32,6 +32,7 @@ public class CommentService {
     private final CodeFileRepository codeFileRepository;
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final KafkaProducerService kafkaProducerService;
 
     //Create method
     @Transactional
@@ -64,13 +65,19 @@ public class CommentService {
 
         log.info("Comment created with id: {}", comment.getId());
 
-        eventPublisher.publishEvent(new CommentAddedEvent(
+        CommentAddedEvent event = new CommentAddedEvent(
                 comment.getId(),
                 prId,
                 authorId,
                 comment.getAuthor().getUsername(),
                 comment.getLineNumber() != null
-        ));
+        );
+
+        // In-process (Observer pattern)
+        eventPublisher.publishEvent(event);
+
+        // Distributed (Kafka)
+        kafkaProducerService.publishCommentAdded(event);
 
         return mapToDTO(comment);
     }
