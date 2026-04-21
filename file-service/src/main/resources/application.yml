@@ -20,12 +20,16 @@ spring:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
   kafka:
-    bootstrap-servers: ${KAFKA_HOST:localhost}:29092
+    bootstrap-servers: ${KAFKA_HOST:localhost}:9092
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
-        spring.json.add.type.headers: false
+        spring.json.add.type.headers: true
+        spring.json.type.mapping: >
+          pr-created:com.codereview.file.event.PRCreatedEvent,
+          comment-added:com.codereview.file.event.CommentAddedEvent,
+          pr-updated:com.codereview.file.event.PRUpdatedEvent
 
   data:
     redis:

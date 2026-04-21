@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: notification-service
+  kafka:
+    bootstrap-servers: ${KAFKA_HOST:localhost}:${KAFKA_PORT:9092}
+    consumer:
+      group-id: notification-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        spring.json.type.mapping: >
+          pr-created:com.codereview.notification.event.PRCreatedEvent,
+          comment-added:com.codereview.notification.event.CommentAddedEvent,
+          pr-updated:com.codereview.notification.event.PRUpdatedEvent
+
+server:
+  port: 8089
+
+logging:
+  level:
+    com.codereview.notification: INFO

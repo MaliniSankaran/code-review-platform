@@ -15,42 +15,55 @@ A production-grade distributed system for code review, combining automated AI an
 - Ownership-based authorization across all resources
 - Shared common-lib module — centralized entities, exceptions, and DTOs
 - Centralized exception handling with consistent error responses
+- Event-driven architecture with Apache Kafka — PR and comment activity published as events
+- Dedicated notification-service as a pure Kafka consumer — no database, no REST endpoints
 - Fully containerized with Docker (multi-stage builds, monorepo build context)
 - Environment-based configuration with secret management
 - Auto-generated API documentation via Swagger/OpenAPI on all services
 
 ### Architecture
 
-Four independently deployable Spring Boot services sharing a common library, all running on a Docker bridge network. All client traffic flows through the API Gateway.
+Five independently deployable Spring Boot services sharing a common library, all running on a Docker bridge network. All client traffic flows through the API Gateway. PR and comment events flow asynchronously through Kafka to the notification service.
 
 ```
                         Client (browser / Postman)
                                    │
                                    ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│ Docker (crp-network)                                                │
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────────┐    │
-│  │                 gateway-service  port 8888                  │    │
-│  │         JWT filter · CORS · logging · routing               │    │
-│  └──────────┬──────────────────┬──────────────────┬────────────┘    │
-│             │                  │                  │                 │
-│  ┌──────────▼───┐   ┌──────────▼───┐   ┌──────────▼───┐             │
-│  │ auth-service │   │ file-service │   │review-service│             │
-│  │  port 8081   │   │  port 8082   │   │  port 8080   │             │
-│  │  JWT · auth  │   │ repos · files│   │  analysis    │             │
-│  └──────┬───────┘   └──────┬───────┘   └──────┬───────┘             │
-│         │                  │                  │                     │
-│  ┌──────▼──────────────────▼──────────────────▼────────┐            │
-│  │                     common-lib                      │            │
-│  │         User · Role · exceptions · shared DTOs      │            │
-│  └─────────────────────────────────────────────────────┘            │
-│                                                                     │
-│  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐             │
-│  │ crp-postgres │   │  crp-redis   │   │  crp-minio   │             │
-│  │  port 5432   │   │  port 6379   │   │  port 9000   │             │
-│  └──────────────┘   └──────────────┘   └──────────────┘             │
-└─────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────┐
+│ Docker (crp-network)                                                      │
+│                                                                           │
+│  ┌─────────────────────────────────────────────────────────────────┐      │
+│  │                 gateway-service  port 8888                      │      │
+│  │         JWT filter · CORS · logging · routing                   │      │
+│  └──────────┬──────────────────┬──────────────────┬────────────────┘      │
+│             │                  │                  │                       │
+│  ┌──────────▼───┐   ┌──────────▼───┐   ┌──────────▼───┐                   │
+│  │ auth-service │   │ file-service │   │review-service│                   │
+│  │  port 8081   │   │  port 8082   │   │  port 8080   │                   │
+│  │  JWT · auth  │   │ repos · files│   │  analysis    │                   │
+│  └──────┬───────┘   └──────┬───────┘   └──────┬───────┘                   │
+│         │                  │                  │                           │
+│  ┌──────▼──────────────────▼──────────────────▼────────┐                  │
+│  │                     common-lib                      │                  │
+│  │         User · Role · exceptions · shared DTOs      │                  │
+│  └─────────────────────────────────────────────────────┘                  │
+│                            │                                              │
+│                   Kafka events (file-service publishes)                   │
+│                            ▼                                              │
+│                    ┌───────────────┐    ┌──────────────────────────┐      │
+│                    │  crp-kafka    │───▶│  notification-service    │      │
+│                    │  port 9092    │    │  port 8089               │      │
+│                    └───────┬───────┘    │  Kafka consumer only     │      │
+│                            │            └──────────────────────────┘       │
+│                    ┌───────▼───────┐                                      │
+│                    │ crp-zookeeper │                                      │
+│                    └───────────────┘                                      │
+│                                                                           │
+│  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐                   │
+│  │ crp-postgres │   │  crp-redis   │   │  crp-minio   │                   │
+│  │  port 5432   │   │  port 6379   │   │  port 9000   │                   │
+│  └──────────────┘   └──────────────┘   └──────────────┘                   │
+└───────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Service Responsibilities
@@ -59,9 +72,18 @@ Four independently deployable Spring Boot services sharing a common library, all
 |---------|------|------|
 | gateway-service | 8888 | Routing, JWT validation, CORS, request logging |
 | auth-service | 8081 | User registration, login, JWT issuance |
-| file-service | 8082 | Repositories, code files, pull requests, comments, MinIO |
+| file-service | 8082 | Repositories, code files, pull requests, comments, MinIO, Kafka producer |
 | review-service | 8080 | Code analysis, AI review (Week 7) |
+| notification-service | 8089 | Kafka consumer — listens for PR/comment events |
 | common-lib | — | User, Role entities, shared exceptions, shared DTOs |
+
+### Kafka Topics
+
+| Topic | Producer | Consumer | Trigger |
+|-------|----------|----------|---------|
+| `pr-created` | file-service | notification-service | Pull request created |
+| `comment-added` | file-service | notification-service | Comment added to PR |
+| `pr-updated` | file-service | notification-service | PR status changed |
 
 ## Tech Stack
 
@@ -73,6 +95,7 @@ Four independently deployable Spring Boot services sharing a common library, all
 | Database | PostgreSQL 15 |
 | Cache | Redis 7 |
 | Object Storage | MinIO (S3-compatible) |
+| Messaging | Apache Kafka (Confluent 7.4.0) |
 | Authentication | JWT, BCrypt |
 | ORM | Spring Data JPA, Hibernate |
 | Shared Library | common-lib (Maven module) |
@@ -107,17 +130,17 @@ JWT_SECRET=your-256-bit-secret-key-here
 ```bash
 docker-compose up --build
 ```
-This starts all three services plus PostgreSQL, Redis, and MinIO.
+This starts all services plus PostgreSQL, Redis, MinIO, Zookeeper, and Kafka.
 
 4. **Run locally (for development)**
 
 Start infrastructure first:
 ```bash
-docker start crp-postgres crp-redis crp-minio
+docker-compose up postgres redis minio zookeeper kafka
 ```
-Then run each service from IntelliJ using its respective `.env` file.
+Then run each service from IntelliJ in this order: auth-service, file-service, review-service, gateway-service, notification-service.
 
-> Note: Stop IntelliJ services before running `docker-compose up` — port conflicts will prevent containers from starting.
+> Note: Stop IntelliJ services before running `docker-compose up` — running both simultaneously splits Kafka consumer group partitions between local and Docker instances.
 
 ## API Endpoints
 
@@ -200,7 +223,7 @@ Available analysis types: `PERFORMANCE`, `SECURITY`, `STYLE`
         │              │ │ description      │   │ │ id          (PK) │  │
         │              │ │ status           │   │ │ content (TEXT)   │  │
         │              ├─│ repository_id(FK)│   │ │pull_request_id(FK)│ │
-        │              │ │ author_id   (FK) │──┘  │ code_file_id(FK) │ ─┘
+        │              │ │ author_id   (FK) │───┘ │ code_file_id(FK) │─┘
         └──────────────┤ │ created_at       │     │ line_number      │
                        │ │ updated_at       │     │ author_id   (FK) │
                        │ └──────────────────┘     │ created_at       │
@@ -211,31 +234,48 @@ Available analysis types: `PERFORMANCE`, `SECURITY`, `STYLE`
 
 > User and Role entities live in common-lib and are shared across all services via @EntityScan.
 
+## Design Patterns
+
+| Pattern | Where |
+|---------|-------|
+| Repository | JpaRepository for all DB access |
+| DTO | All API responses use DTOs, never entities |
+| Builder | Lombok @Builder on all entities and DTOs |
+| Factory | FileProcessorFactory — auto-discovers file processors by extension |
+| Strategy | AnalysisContext — runtime swap between Security/Performance/Style analysis |
+| Observer | Spring ApplicationEvents for in-process PR/comment notifications |
+| Filter Chain | JwtAuthenticationFilter (services), JwtAuthFilter (gateway) |
+| Adapter | UserPrincipal adapts User entity to Spring Security UserDetails |
+
 ## Project Structure
 
 ```
 code-review-platform/
-├── gateway-service/       ← Spring Cloud Gateway, port 8888, com.codereview.gateway
+├── gateway-service/        ← Spring Cloud Gateway, port 8888
 │   ├── src/
 │   ├── Dockerfile
 │   └── pom.xml
-├── auth-service/          ← Spring Boot, port 8081, com.codereview.auth
+├── auth-service/           ← Spring Boot, port 8081
 │   ├── src/
 │   ├── Dockerfile
 │   └── pom.xml
-├── file-service/          ← Spring Boot, port 8082, com.codereview.file
+├── file-service/           ← Spring Boot, port 8082, Kafka producer
 │   ├── src/
 │   ├── Dockerfile
 │   └── pom.xml
-├── review-service/        ← Spring Boot, port 8080, com.codereview.platform
+├── review-service/         ← Spring Boot, port 8080
 │   ├── src/
 │   ├── Dockerfile
 │   └── pom.xml
-├── common-lib/            ← Shared Maven module, com.codereview.common
+├── notification-service/   ← Spring Boot, port 8089, Kafka consumer only
+│   ├── src/
+│   ├── Dockerfile
+│   └── pom.xml
+├── common-lib/             ← Shared Maven module
 │   ├── src/
 │   └── pom.xml
-├── docker-compose.yml     ← All 7 containers on crp-network
-└── .env                   ← POSTGRES_PASSWORD, JWT_SECRET, MINIO_ROOT_PASSWORD
+├── docker-compose.yml      ← All 10 containers on crp-network
+└── .env                    ← POSTGRES_PASSWORD, JWT_SECRET, MINIO_ROOT_PASSWORD
 ```
 
 ## Author

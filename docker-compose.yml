@@ -72,6 +72,7 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       REDIS_HOST: crp-redis
       KAFKA_HOST: crp-kafka
+      KAFKA_PORT: 29092
     ports:
       - "8082:8082"
     networks:
@@ -145,13 +146,29 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: crp-zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://crp-kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://crp-kafka:29092,PLAINTEXT_HOST://host.docker.internal:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
     networks:
       - crp-network
+    restart: unless-stopped
+
+  notification-service:
+    container_name: crp-notification
+    build:
+      context: .
+      dockerfile: notification-service/Dockerfile
+    environment:
+      KAFKA_HOST: crp-kafka
+      KAFKA_PORT: 29092
+    ports:
+      - "8089:8089"
+    networks:
+      - crp-network
+    depends_on:
+      - kafka
     restart: unless-stopped
 
 volumes:
