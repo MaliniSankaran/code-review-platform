@@ -2,6 +2,14 @@
 
 Real-time collaborative code review platform with AI-powered analysis and microservices architecture.
 
+## TL;DR
+
+- Distributed code review platform inspired by GitHub PRs + Google Docs
+- Built using Spring Boot microservices with API Gateway + Kafka event-driven architecture
+- Supports real-time collaboration with JWT auth, RBAC, and role-based access control
+- Includes file management (MinIO), caching (Redis), and centralized shared library for consistency
+- Fully containerized with Docker Compose across 10+ services
+
 ## Description
 
 A production-grade distributed system for code review, combining automated AI analysis with real-time human collaboration, built as a microservices architecture. Think GitHub Pull Requests + Google Docs + ChatGPT for code review.
@@ -54,7 +62,7 @@ Five independently deployable Spring Boot services sharing a common library, all
 │                    │  crp-kafka    │───▶│  notification-service    │      │
 │                    │  port 9092    │    │  port 8089               │      │
 │                    └───────┬───────┘    │  Kafka consumer only     │      │
-│                            │            └──────────────────────────┘       │
+│                            │            └──────────────────────────┘      │
 │                    ┌───────▼───────┐                                      │
 │                    │ crp-zookeeper │                                      │
 │                    └───────────────┘                                      │
@@ -66,6 +74,13 @@ Five independently deployable Spring Boot services sharing a common library, all
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
+### System Design Decisions (Current)
+- API Gateway pattern for centralized authentication, routing, and request control
+- Microservices separation by domain (auth, file, review, notifications)
+- Kafka-based event-driven communication to decouple PR lifecycle events from notifications
+- Shared common-lib module for consistent domain models across services
+- MinIO object storage for scalable file handling
+  
 ### Service Responsibilities
 
 | Service | Port | Owns |
