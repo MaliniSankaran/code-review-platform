@@ -7,5 +7,5 @@ public interface AnalysisStrategy {
 
     String getStrategyName();
 
-    List<Map<String, String>> analyze(String code, String language);
+    List<Map<String, String>> analyze(String code, String language, Map<String, String> existingFiles);
 }

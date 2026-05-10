@@ -8,6 +8,7 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -23,6 +24,7 @@ public class KafkaProducerService {
         log.info("Kafka producer initialized");
     }
 
+    @Async
     public void publishPRCreated(PRCreatedEvent event) {
         try {
             kafkaTemplate.send(KafkaTopicConfig.PR_CREATED_TOPIC, event);
@@ -32,6 +34,7 @@ public class KafkaProducerService {
         }
     }
 
+    @Async
     public void publishCommentAdded(CommentAddedEvent event) {
         try {
             kafkaTemplate.send(KafkaTopicConfig.COMMENT_ADDED_TOPIC, event);
@@ -41,6 +44,7 @@ public class KafkaProducerService {
         }
     }
 
+    @Async
     public void publishPRUpdated(PRUpdatedEvent event) {
         try {
             kafkaTemplate.send(KafkaTopicConfig.PR_UPDATED_TOPIC, event);

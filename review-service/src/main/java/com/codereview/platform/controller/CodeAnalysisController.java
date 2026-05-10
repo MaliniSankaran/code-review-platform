@@ -21,10 +21,18 @@ public class CodeAnalysisController {
     public ResponseEntity<List<Map<String, String>>> analyzeCode(
             @RequestParam String language,
             @RequestParam(defaultValue = "ALL") String analysisType,
-            @RequestBody String code) {
+            @RequestParam(required = false) Long prId,
+            @RequestParam(required = false) Long codeFileId,
+            @RequestBody String code,
+            @RequestHeader(value = "Authorization", required = false) String authToken) {
 
-        log.info("Analysis request: type={}, language={}", analysisType, language);
+        log.info("Analysis request: type={}, language={}, prId={}", analysisType, language, prId);
         List<Map<String, String>> results = codeAnalysisService.analyze(code, language, analysisType);
+
+        if (prId != null && authToken != null) {
+            codeAnalysisService.saveAnalysisAsComments(prId, codeFileId, results, authToken);
+        }
+
         return ResponseEntity.ok(results);
     }
 

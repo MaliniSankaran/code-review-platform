@@ -96,6 +96,13 @@ services:
       MINIO_HOST: crp-minio
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       REDIS_HOST: crp-redis
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      FILE_SERVICE_URL: http://crp-file:8082
+      KAFKA_HOST: crp-kafka
+      KAFKA_PORT: 29092
+      AI_SERVICE_USERNAME: ${AI_SERVICE_USERNAME}
+      AI_SERVICE_PASSWORD: ${AI_SERVICE_PASSWORD}
+      AUTH_SERVICE_URL: http://crp-auth:8081
     ports:
       - "8080:8080"
     networks:

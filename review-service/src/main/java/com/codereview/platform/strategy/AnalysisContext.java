@@ -11,11 +11,20 @@ import java.util.Map;
 public class AnalysisContext {
 
     private AnalysisStrategy strategy;
+    private Map<String, String> existingFiles;
 
     //Swap active strategy at runtime
     public void setStrategy(AnalysisStrategy strategy) {
         log.info("Switching analysis strategy to {}", strategy.getStrategyName());
         this.strategy = strategy;
+    }
+
+    public void setExistingFiles(Map<String, String> existingFiles) {
+        this.existingFiles = existingFiles;
+    }
+
+    public void clearExistingFiles() {
+        this.existingFiles = null;
     }
 
     public String getActiveStrategyName() {
@@ -28,7 +37,9 @@ public class AnalysisContext {
         if (strategy == null) {
             throw new IllegalStateException("No analysis strategy set. Call setStrategy() first.");
         }
-        log.info("Executing {} analysis on {} code", strategy.getStrategyName(), language);
-        return strategy.analyze(code, language);
+        log.info("Executing {} analysis on {} code (context: {})",
+                strategy.getStrategyName(), language,
+                existingFiles != null ? existingFiles.size() + " files" : "none");
+        return strategy.analyze(code, language, existingFiles);
     }
 }

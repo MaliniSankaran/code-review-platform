@@ -1,15 +1,17 @@
 package com.codereview.platform.event;
 
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Getter
+@NoArgsConstructor
 public class PRCreatedEvent {
 
-    private final Long prId;
-    private final String title;
-    private final Long repositoryId;
-    private final Long authorId;
-    private final String authorUsername;
+    private  Long prId;
+    private  String title;
+    private  Long repositoryId;
+    private  Long authorId;
+    private  String authorUsername;
 
     public PRCreatedEvent(Long prId, String title, Long repositoryId, Long authorId, String authorUsername) {
         this.prId = prId;

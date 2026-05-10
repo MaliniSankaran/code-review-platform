@@ -1,76 +1,70 @@
 package com.codereview.platform.strategy;
 
+import com.codereview.platform.service.AIService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 @Component
-public class SecurityAnalysisStrategy implements AnalysisStrategy{
+@RequiredArgsConstructor
+@Slf4j
+public class SecurityAnalysisStrategy implements AnalysisStrategy {
 
-    public String getStrategyName(){
+    private final AIService aiService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Override
+    public String getStrategyName() {
         return "SECURITY";
     }
 
     @Override
-    public List<Map<String, String>> analyze(String code, String language) {
+    public List<Map<String, String>> analyze(String code, String language, Map<String, String> existingFiles) {
+        try {
+            String response;
+            if (existingFiles != null && !existingFiles.isEmpty()) {
+                response = aiService.analyzeWithContext(code, language, "SECURITY", existingFiles);
+            } else {
+                response = aiService.analyze(code, language, "SECURITY");
+            }
+            String cleaned = cleanResponse(response);
+            List<Map<String, Object>> rawFindings = objectMapper.readValue(
+                    cleaned,
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, Map.class)
+            );
+            return convertFindings(rawFindings, "SECURITY");
+        } catch (Exception e) {
+            log.error("Security analysis failed: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    private String cleanResponse(String response) {
+        // AI sometimes wraps JSON in markdown code fences — strip them
+        String cleaned = response.trim();
+        if (cleaned.startsWith("```")) {
+            cleaned = cleaned.replaceAll("```json\\n?", "").replaceAll("```\\n?", "").trim();
+        }
+        return cleaned;
+    }
+
+    private List<Map<String, String>> convertFindings(List<Map<String, Object>> raw, String strategy) {
         List<Map<String, String>> findings = new ArrayList<>();
-        String[] lines = code.split("\n");
-
-        for(int i=0; i<lines.length; i++){
-            String line = lines[i].trim();
-            int lineNumber = i+1;
-
-            if(line.contains("password") && line.contains("=")&& !line.contains("getPassword")){
-                findings.add(createFinding(
-                        "Possible harcoded password",
-                        "HIGH",
-                        String.valueOf(lineNumber),
-                        "Use environment variables for sensitive values"
-                ));
-            }
-
-            if (line.contains("SELECT") && line.contains("+")) {
-                findings.add(createFinding(
-                        "Possible SQL injection",
-                        "CRITICAL",
-                        String.valueOf(lineNumber),
-                        "Use parameterized queries instead of string concatenation"
-                ));
-            }
-
-            if (line.contains("System.out.println") || line.contains("print(")) {
-                findings.add(createFinding(
-                        "Debug print statement in code",
-                        "LOW",
-                        String.valueOf(lineNumber),
-                        "Use a proper logging framework"
-                ));
-            }
-
-            if (line.contains("catch") && line.contains("Exception") && lines.length > i + 1
-                    && lines[i + 1].trim().isEmpty()) {
-                findings.add(createFinding(
-                        "Empty catch block",
-                        "MEDIUM",
-                        String.valueOf(lineNumber),
-                        "Log the exception or handle it properly"
-                ));
-            }
+        for (Map<String, Object> finding : raw) {
+            Map<String, String> converted = new java.util.HashMap<>();
+            converted.put("issue", String.valueOf(finding.getOrDefault("issue", "")));
+            converted.put("severity", String.valueOf(finding.getOrDefault("severity", "MEDIUM")));
+            converted.put("suggestion", String.valueOf(finding.getOrDefault("suggestion", "")));
+            converted.put("confidence", String.valueOf(finding.getOrDefault("confidence", "0.5")));
+            converted.put("line", String.valueOf(finding.getOrDefault("line", "null")));
+            converted.put("strategy", strategy);
+            findings.add(converted);
         }
         return findings;
-        }
-
-    private Map<String, String> createFinding(String issue, String severity, String line, String suggestion) {
-        Map<String, String> finding = new HashMap<>();
-        finding.put("issue", issue);
-        finding.put("severity", severity);
-        finding.put("line", line);
-        finding.put("suggestion", suggestion);
-        finding.put("strategy", getStrategyName());
-        return finding;
     }
 }
-

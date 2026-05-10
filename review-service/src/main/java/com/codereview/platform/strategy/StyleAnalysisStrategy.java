@@ -1,5 +1,9 @@
 package com.codereview.platform.strategy;
 
+import com.codereview.platform.service.AIService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -8,7 +12,12 @@ import java.util.List;
 import java.util.Map;
 
 @Component
+@RequiredArgsConstructor
+@Slf4j
 public class StyleAnalysisStrategy implements AnalysisStrategy {
+
+    private final AIService aiService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     public String getStrategyName() {
@@ -16,73 +25,46 @@ public class StyleAnalysisStrategy implements AnalysisStrategy {
     }
 
     @Override
-    public List<Map<String, String>> analyze(String code, String language) {
-        List<Map<String, String>> findings = new ArrayList<>();
-        String[] lines = code.split("\n");
-
-        for (int i = 0; i < lines.length; i++) {
-            String line = lines[i];
-            String trimmed = line.trim();
-            int lineNumber = i + 1;
-
-            // Lines over 120 chars are hard to read during code review
-            if (line.length() > 120) {
-                findings.add(createFinding(
-                        "Line exceeds 120 characters (" + line.length() + " chars)",
-                        "LOW",
-                        String.valueOf(lineNumber),
-                        "Break long lines for readability"
-                ));
+    public List<Map<String, String>> analyze(String code, String language, Map<String, String> existingFiles) {
+        try {
+            String response;
+            if (existingFiles != null && !existingFiles.isEmpty()) {
+                response = aiService.analyzeWithContext(code, language, "STYLE", existingFiles);
+            } else {
+                response = aiService.analyze(code, language, "STYLE");
             }
-
-            // TODO/FIXME/HACK comments left in production code
-            if (trimmed.contains("TODO") || trimmed.contains("FIXME") || trimmed.contains("HACK")) {
-                findings.add(createFinding(
-                        "Unresolved annotation found: " + trimmed,
-                        "LOW",
-                        String.valueOf(lineNumber),
-                        "Resolve this or track it in your issue tracker"
-                ));
-            }
-
-            // Magic numbers make code hard to understand
-            if (!trimmed.startsWith("//") && !trimmed.startsWith("*")) {
-                if (trimmed.matches(".*[^a-zA-Z0-9_](\\d{3,})[^a-zA-Z0-9_].*")) {
-                    findings.add(createFinding(
-                            "Magic number detected",
-                            "LOW",
-                            String.valueOf(lineNumber),
-                            "Extract into a named constant for clarity"
-                    ));
-                }
-            }
-
-            // Deeply nested code — count leading spaces as a proxy for nesting level
-            int indentSpaces = 0;
-            for (char c : line.toCharArray()) {
-                if (c == ' ') indentSpaces++;
-                else break;
-            }
-            if (indentSpaces >= 20 && !trimmed.isEmpty()) { // ~5 levels at 4 spaces each
-                findings.add(createFinding(
-                        "Deeply nested code (indent level ~" + (indentSpaces / 4) + ")",
-                        "MEDIUM",
-                        String.valueOf(lineNumber),
-                        "Extract to a private method to reduce nesting"
-                ));
-            }
+            String cleaned = cleanResponse(response);
+            List<Map<String, Object>> rawFindings = objectMapper.readValue(
+                    cleaned,
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, Map.class)
+            );
+            return convertFindings(rawFindings, "STYLE");
+        } catch (Exception e) {
+            log.error("Style analysis failed: {}", e.getMessage());
+            return List.of();
         }
-
-        return findings;
     }
 
-    private Map<String, String> createFinding(String issue, String severity, String line, String suggestion) {
-        Map<String, String> finding = new HashMap<>();
-        finding.put("issue", issue);
-        finding.put("severity", severity);
-        finding.put("line", line);
-        finding.put("suggestion", suggestion);
-        finding.put("strategy", getStrategyName());
-        return finding;
+    private String cleanResponse(String response) {
+        String cleaned = response.trim();
+        if (cleaned.startsWith("```")) {
+            cleaned = cleaned.replaceAll("```json\\n?", "").replaceAll("```\\n?", "").trim();
+        }
+        return cleaned;
+    }
+
+    private List<Map<String, String>> convertFindings(List<Map<String, Object>> raw, String strategy) {
+        List<Map<String, String>> findings = new ArrayList<>();
+        for (Map<String, Object> finding : raw) {
+            Map<String, String> converted = new HashMap<>();
+            converted.put("issue", String.valueOf(finding.getOrDefault("issue", "")));
+            converted.put("severity", String.valueOf(finding.getOrDefault("severity", "MEDIUM")));
+            converted.put("suggestion", String.valueOf(finding.getOrDefault("suggestion", "")));
+            converted.put("confidence", String.valueOf(finding.getOrDefault("confidence", "0.5")));
+            converted.put("line", String.valueOf(finding.getOrDefault("line", "null")));
+            converted.put("strategy", strategy);
+            findings.add(converted);
+        }
+        return findings;
     }
 }

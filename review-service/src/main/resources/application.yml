@@ -27,6 +27,14 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: 6379
 
+  kafka:
+    bootstrap-servers: ${KAFKA_HOST:localhost}:${KAFKA_PORT:9092}
+    consumer:
+      group-id: review-service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
 server:
   port: 8080
 
@@ -40,3 +48,18 @@ minio:
   secret-key: ${MINIO_ROOT_PASSWORD}
   bucket-name: code-files
 
+groq:
+  api:
+    key: ${GROQ_API_KEY}
+    url: https://api.groq.com/openai/v1/chat/completions
+    model: llama-3.3-70b-versatile
+
+services:
+  file-service:
+    url: ${FILE_SERVICE_URL:http://localhost:8082}
+
+ai:
+  service:
+    username: ${AI_SERVICE_USERNAME}
+    password: ${AI_SERVICE_PASSWORD}
+    auth-url: ${AUTH_SERVICE_URL:http://localhost:8081}/api/auth/login
