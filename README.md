@@ -6,6 +6,7 @@ Real-time collaborative code review platform with AI-powered analysis and micros
 
 - Distributed code review platform inspired by GitHub PRs + Google Docs
 - Built using Spring Boot microservices with API Gateway + Kafka event-driven architecture
+- AI-powered code analysis using Groq API (Llama 3.3-70b) — automatically triggered on PR creation
 - Supports real-time collaboration with JWT auth, RBAC, and role-based access control
 - Includes file management (MinIO), caching (Redis), and centralized shared library for consistency
 - Fully containerized with Docker Compose across 10+ services
@@ -24,6 +25,11 @@ A production-grade distributed system for code review, combining automated AI an
 - Shared common-lib module — centralized entities, exceptions, and DTOs
 - Centralized exception handling with consistent error responses
 - Event-driven architecture with Apache Kafka — PR and comment activity published as events
+- **AI-powered code analysis** — Security, Performance, and Style analysis using Groq API (Llama 3.3-70b)
+- **Kafka auto-trigger** — PR creation automatically triggers AI analysis; findings posted as PR comments
+- **Provider-agnostic AI design** — AIService interface abstraction for easy provider swapping
+- **Context-aware analysis** — AI receives full codebase context for more accurate findings
+- **Jaccard similarity deduplication** — eliminates redundant AI findings across analysis types
 - Dedicated notification-service as a pure Kafka consumer — no database, no REST endpoints
 - Fully containerized with Docker (multi-stage builds, monorepo build context)
 - Environment-based configuration with secret management
@@ -31,7 +37,7 @@ A production-grade distributed system for code review, combining automated AI an
 
 ### Architecture
 
-Five independently deployable Spring Boot services sharing a common library, all running on a Docker bridge network. All client traffic flows through the API Gateway. PR and comment events flow asynchronously through Kafka to the notification service.
+Five independently deployable Spring Boot services sharing a common library, all running on a Docker bridge network. All client traffic flows through the API Gateway. PR and comment events flow asynchronously through Kafka to both the notification service and review service for AI analysis.
 
 ```
                         Client (browser / Postman)
@@ -45,17 +51,17 @@ Five independently deployable Spring Boot services sharing a common library, all
 │  │         JWT filter · CORS · logging · routing                   │      │
 │  └──────────┬──────────────────┬──────────────────┬────────────────┘      │
 │             │                  │                  │                       │
-│  ┌──────────▼───┐   ┌──────────▼───┐   ┌──────────▼───┐                   │
-│  │ auth-service │   │ file-service │   │review-service│                   │
-│  │  port 8081   │   │  port 8082   │   │  port 8080   │                   │
-│  │  JWT · auth  │   │ repos · files│   │  analysis    │                   │
-│  └──────┬───────┘   └──────┬───────┘   └──────┬───────┘                   │
-│         │                  │                  │                           │
-│  ┌──────▼──────────────────▼──────────────────▼────────┐                  │
-│  │                     common-lib                      │                  │
-│  │         User · Role · exceptions · shared DTOs      │                  │
-│  └─────────────────────────────────────────────────────┘                  │
-│                            │                                              │
+│  ┌──────────▼───┐   ┌──────────▼───┐   ┌──────────▼───────────────┐       │
+│  │ auth-service │   │ file-service │   │     review-service       │       │
+│  │  port 8081   │   │  port 8082   │   │       port 8080          │       │
+│  │  JWT · auth  │   │ repos · files│   │  AI analysis · Groq API  │       │
+│  └──────┬───────┘   └──────┬───────┘   └──────────────────────────┘       │
+│         │                  │                        ▲                     │
+│  ┌──────▼──────────────────▼──────────────────┐     │ pr-created event    │
+│  │                     common-lib             │     │                     │
+│  │         User · Role · exceptions · DTOs    │     │                     │
+│  └────────────────────────────────────────────┘     │                     │
+│                            │                        │                     │
 │                   Kafka events (file-service publishes)                   │
 │                            ▼                                              │
 │                    ┌───────────────┐    ┌──────────────────────────┐      │
@@ -74,13 +80,45 @@ Five independently deployable Spring Boot services sharing a common library, all
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
-### System Design Decisions (Current)
+### AI Analysis Flow
+
+```
+User creates PR
+      │
+      ▼
+file-service saves PR → publishes pr-created event to Kafka
+      │
+      ▼
+review-service AIAnalysisListener consumes event
+      │
+      ▼
+SystemTokenService authenticates as ai-service account
+      │
+      ▼
+FileServiceClient fetches all repo files for codebase context
+      │
+      ▼
+GroqAIService runs Security + Performance + Style analysis
+      │
+      ▼
+Jaccard similarity deduplication removes redundant findings
+      │
+      ▼
+Findings saved as PR comments via FileServiceClient
+(authored by ai-service account)
+```
+
+### System Design Decisions
 - API Gateway pattern for centralized authentication, routing, and request control
 - Microservices separation by domain (auth, file, review, notifications)
-- Kafka-based event-driven communication to decouple PR lifecycle events from notifications
+- Kafka-based event-driven communication to decouple PR lifecycle events from notifications and AI analysis
+- Provider-agnostic AIService interface — swap Groq for any LLM without changing business logic
+- Strategy pattern for AI analysis — Security, Performance, Style are independently extensible
+- Service account authentication for inter-service calls — SystemTokenService with JWT auto-refresh
+- @Async on Kafka publish methods — prevents AI analysis from blocking HTTP responses
 - Shared common-lib module for consistent domain models across services
 - MinIO object storage for scalable file handling
-  
+
 ### Service Responsibilities
 
 | Service | Port | Owns |
@@ -88,15 +126,15 @@ Five independently deployable Spring Boot services sharing a common library, all
 | gateway-service | 8888 | Routing, JWT validation, CORS, request logging |
 | auth-service | 8081 | User registration, login, JWT issuance |
 | file-service | 8082 | Repositories, code files, pull requests, comments, MinIO, Kafka producer |
-| review-service | 8080 | Code analysis, AI review (Week 7) |
+| review-service | 8080 | AI code analysis (Groq), Kafka consumer for auto-trigger, strategy execution |
 | notification-service | 8089 | Kafka consumer — listens for PR/comment events |
 | common-lib | — | User, Role entities, shared exceptions, shared DTOs |
 
 ### Kafka Topics
 
-| Topic | Producer | Consumer | Trigger |
-|-------|----------|----------|---------|
-| `pr-created` | file-service | notification-service | Pull request created |
+| Topic | Producer | Consumers | Trigger |
+|-------|----------|-----------|---------|
+| `pr-created` | file-service | notification-service, review-service | Pull request created |
 | `comment-added` | file-service | notification-service | Comment added to PR |
 | `pr-updated` | file-service | notification-service | PR status changed |
 
@@ -107,6 +145,7 @@ Five independently deployable Spring Boot services sharing a common library, all
 | Backend | Spring Boot 4.0.2, Spring Security |
 | API Gateway | Spring Cloud Gateway 2025.1.1 |
 | API Docs | Springdoc OpenAPI 2.8.6 (Swagger UI) |
+| AI / LLM | Groq API (Llama 3.3-70b-versatile), OkHttp 4.12.0 |
 | Database | PostgreSQL 15 |
 | Cache | Redis 7 |
 | Object Storage | MinIO (S3-compatible) |
@@ -123,6 +162,7 @@ Five independently deployable Spring Boot services sharing a common library, all
 - Docker and Docker Compose installed
 - Java 17+ (for local development)
 - Maven (for local development)
+- Groq API key (free at [console.groq.com](https://console.groq.com))
 
 ### Setup
 
@@ -139,21 +179,42 @@ Create a `.env` file in the project root:
 POSTGRES_PASSWORD=your_password_here
 MINIO_ROOT_PASSWORD=your_minio_password_here
 JWT_SECRET=your-256-bit-secret-key-here
+GROQ_API_KEY=your_groq_api_key_here
+AI_SERVICE_USERNAME=ai-service@codereview.internal
+AI_SERVICE_PASSWORD=your_ai_service_password_here
 ```
 
-3. **Run with Docker (recommended)**
+3. **Register the AI service account**
+
+Before running for the first time, start the services and register the AI service account:
+```bash
+POST http://localhost:8081/api/auth/register
+{
+  "username": "ai-service",
+  "email": "ai-service@codereview.internal",
+  "password": "your_ai_service_password_here",
+  "fullName": "AI Analysis Service"
+}
+```
+
+4. **Run with Docker (recommended)**
 ```bash
 docker-compose up --build
 ```
 This starts all services plus PostgreSQL, Redis, MinIO, Zookeeper, and Kafka.
 
-4. **Run locally (for development)**
+5. **Run locally (for development)**
 
 Start infrastructure first:
 ```bash
 docker-compose up postgres redis minio zookeeper kafka
 ```
 Then run each service from IntelliJ in this order: auth-service, file-service, review-service, gateway-service, notification-service.
+
+Set these environment variables in your IntelliJ run configurations:
+
+- **file-service**: `KAFKA_HOST=host.docker.internal`
+- **review-service**: `KAFKA_HOST=host.docker.internal`, `AI_SERVICE_USERNAME=ai-service@codereview.internal`, `AI_SERVICE_PASSWORD=your_password`, `FILE_SERVICE_URL=http://localhost:8082`, `AUTH_SERVICE_URL=http://localhost:8081`
 
 > Note: Stop IntelliJ services before running `docker-compose up` — running both simultaneously splits Kafka consumer group partitions between local and Docker instances.
 
@@ -205,9 +266,11 @@ All endpoints are accessible via the API Gateway at `http://localhost:8888`. Ind
 ### Analysis
 | Method | Endpoint | Access | Description |
 |--------|----------|--------|-------------|
-| GET | `/api/analysis?language={language}&analysisType={type}` | Private | Analyse code by language and type |
+| POST | `/api/analysis?language={lang}&analysisType={type}&prId={id}` | Private | Manually trigger AI analysis on code |
 
-Available analysis types: `PERFORMANCE`, `SECURITY`, `STYLE`
+Available analysis types: `PERFORMANCE`, `SECURITY`, `STYLE`, `ALL`
+
+> AI analysis is also triggered **automatically** when a PR is created — no manual API call needed.
 
 > Full interactive API documentation available via Swagger UI:
 > - Auth: `http://localhost:8081/swagger-ui/index.html`
@@ -257,7 +320,7 @@ Available analysis types: `PERFORMANCE`, `SECURITY`, `STYLE`
 | DTO | All API responses use DTOs, never entities |
 | Builder | Lombok @Builder on all entities and DTOs |
 | Factory | FileProcessorFactory — auto-discovers file processors by extension |
-| Strategy | AnalysisContext — runtime swap between Security/Performance/Style analysis |
+| Strategy | AnalysisContext — runtime swap between Security/Performance/Style AI analysis |
 | Observer | Spring ApplicationEvents for in-process PR/comment notifications |
 | Filter Chain | JwtAuthenticationFilter (services), JwtAuthFilter (gateway) |
 | Adapter | UserPrincipal adapts User entity to Spring Security UserDetails |
@@ -278,7 +341,7 @@ code-review-platform/
 │   ├── src/
 │   ├── Dockerfile
 │   └── pom.xml
-├── review-service/         ← Spring Boot, port 8080
+├── review-service/         ← Spring Boot, port 8080, AI analysis, Kafka consumer
 │   ├── src/
 │   ├── Dockerfile
 │   └── pom.xml
@@ -290,7 +353,7 @@ code-review-platform/
 │   ├── src/
 │   └── pom.xml
 ├── docker-compose.yml      ← All 10 containers on crp-network
-└── .env                    ← POSTGRES_PASSWORD, JWT_SECRET, MINIO_ROOT_PASSWORD
+└── .env                    ← Secrets and environment config
 ```
 
 ## Author
