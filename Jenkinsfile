@@ -19,6 +19,7 @@ pipeline {
                 sh 'kubectl apply -f k8s/namespace/namespace.yml'
                 sh 'kubectl apply -f k8s/configmap/configmap.yml'
                 sh 'kubectl apply -f k8s/services/'
+                sh 'kubectl apply -f k8s/monitoring/'
                 sh 'kubectl rollout restart deployment -n codereview'
             }
         }
