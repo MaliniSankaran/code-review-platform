@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-service
+  namespace: codereview
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway-service
+  template:
+    metadata:
+      labels:
+        app: gateway-service
+    spec:
+      containers:
+        - name: gateway-service
+          image: code-review-platform-gateway-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8888
+          envFrom:
+            - secretRef:
+                name: app-secrets
+          env:
+            - name: AUTH_HOST
+              value: "auth-service"
+            - name: FILE_HOST
+              value: "file-service"
+            - name: REVIEW_HOST
+              value: "review-service"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-service
+  namespace: codereview
+spec:
+  selector:
+    app: gateway-service
+  ports:
+    - port: 8888
+      targetPort: 8888
+      nodePort: 30888
+  type: NodePort

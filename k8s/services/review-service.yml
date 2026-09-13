@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: review-service
+  namespace: codereview
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: review-service
+  template:
+    metadata:
+      labels:
+        app: review-service
+    spec:
+      containers:
+        - name: review-service
+          image: code-review-platform-review-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: app-config
+            - secretRef:
+                name: app-secrets
+          env:
+            - name: FILE_SERVICE_URL
+              value: "http://file-service:8082"
+            - name: AUTH_SERVICE_URL
+              value: "http://auth-service:8081"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: review-service
+  namespace: codereview
+spec:
+  selector:
+    app: review-service
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: ClusterIP
