@@ -3,7 +3,11 @@ package com.codereview.file;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.persistence.autoconfigure.EntityScan;
+import org.springframework.context.annotation.Bean;
+import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.scheduling.annotation.EnableAsync;
+
+import java.util.concurrent.Executor;
 
 @SpringBootApplication
 @EnableAsync
@@ -11,5 +15,10 @@ import org.springframework.scheduling.annotation.EnableAsync;
 public class FileServiceApplication {
     public static void main(String[] args) {
         SpringApplication.run(FileServiceApplication.class, args);
+    }
+
+    @Bean(name = "taskExecutor")
+    public Executor taskExecutor() {
+        return new SimpleAsyncTaskExecutor();
     }
 }

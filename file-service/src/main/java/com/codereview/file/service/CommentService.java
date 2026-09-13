@@ -16,6 +16,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
@@ -33,6 +34,7 @@ public class CommentService {
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final KafkaProducerService kafkaProducerService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     //Create method
     @Transactional
@@ -78,6 +80,9 @@ public class CommentService {
 
         // Distributed (Kafka)
         kafkaProducerService.publishCommentAdded(event);
+
+        // WebSocket - broadcast to all subscribers viewing this PR
+        messagingTemplate.convertAndSend("/topic/pr/" + prId + "/comments", mapToDTO(comment));
 
         return mapToDTO(comment);
     }

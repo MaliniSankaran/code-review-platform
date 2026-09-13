@@ -10,6 +10,8 @@ spring:
               '[/**]':
                 allowedOrigins:
                   - "http://localhost:3000"
+                  - "http://localhost:8888"
+                  - "null"
                 allowedMethods:
                   - GET
                   - POST
@@ -36,6 +38,13 @@ spring:
               uri: http://${REVIEW_HOST:localhost}:8080
               predicates:
                 - Path=/api/analysis/**
+
+            - id: file-service-ws
+              uri: ws://${FILE_HOST:localhost}:8082
+              predicates:
+                - Path=/ws/**
+              filters:
+                - RewritePath=/ws/(?<segment>.*), /$\{segment}
 
 server:
   port: 8888
