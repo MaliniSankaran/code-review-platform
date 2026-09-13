@@ -30,3 +30,12 @@ jwt:
 logging:
   level:
     com.codereview.auth: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}

@@ -56,3 +56,12 @@ logging:
   level:
     com.codereview.gateway: INFO
     org.springframework.cloud.gateway: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
