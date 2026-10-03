@@ -6,10 +6,12 @@ Real-time collaborative code review platform with AI-powered analysis and micros
 
 - Distributed code review platform inspired by GitHub PRs + Google Docs
 - Built using Spring Boot microservices with API Gateway + Kafka event-driven architecture
-- AI-powered code analysis using Groq API (Llama 3.3-70b) — automatically triggered on PR creation
+- AI-powered code analysis using Groq API (openai/gpt-oss-120b) — automatically triggered on PR creation
 - Supports real-time collaboration with JWT auth, RBAC, and role-based access control
 - Includes file management (MinIO), caching (Redis), and centralized shared library for consistency
 - Fully containerized with Docker Compose across 10+ services
+- Real-time comment delivery via WebSocket (STOMP)
+- Deployed to Kubernetes with Jenkins CI/CD and Prometheus/Grafana observability
 
 ## Description
 
@@ -25,7 +27,7 @@ A production-grade distributed system for code review, combining automated AI an
 - Shared common-lib module — centralized entities, exceptions, and DTOs
 - Centralized exception handling with consistent error responses
 - Event-driven architecture with Apache Kafka — PR and comment activity published as events
-- **AI-powered code analysis** — Security, Performance, and Style analysis using Groq API (Llama 3.3-70b)
+- **AI-powered code analysis** — Security, Performance, and Style analysis using Groq API (openai/gpt-oss-120b)
 - **Kafka auto-trigger** — PR creation automatically triggers AI analysis; findings posted as PR comments
 - **Provider-agnostic AI design** — AIService interface abstraction for easy provider swapping
 - **Context-aware analysis** — AI receives full codebase context for more accurate findings
@@ -34,6 +36,10 @@ A production-grade distributed system for code review, combining automated AI an
 - Fully containerized with Docker (multi-stage builds, monorepo build context)
 - Environment-based configuration with secret management
 - Auto-generated API documentation via Swagger/OpenAPI on all services
+- **Real-time updates** — WebSocket with STOMP broadcasts new comments to anyone viewing a PR, human or AI-authored
+- **Kubernetes deployment** — Deployments, Services, ConfigMaps, and Secrets for all five services
+- **Automated CI/CD** — Jenkins pipeline builds images and deploys to Kubernetes on every push
+- **Observability** — Prometheus scrapes metrics from all services via Kubernetes service discovery; Grafana dashboards for request rate, Kafka consumer lag, and JVM memory
 
 ### Architecture
 
@@ -145,7 +151,7 @@ Findings saved as PR comments via FileServiceClient
 | Backend | Spring Boot 4.0.2, Spring Security |
 | API Gateway | Spring Cloud Gateway 2025.1.1 |
 | API Docs | Springdoc OpenAPI 2.8.6 (Swagger UI) |
-| AI / LLM | Groq API (Llama 3.3-70b-versatile), OkHttp 4.12.0 |
+| AI / LLM | Groq API (openai/gpt-oss-120b), OkHttp 4.12.0 |
 | Database | PostgreSQL 15 |
 | Cache | Redis 7 |
 | Object Storage | MinIO (S3-compatible) |
@@ -155,6 +161,10 @@ Findings saved as PR comments via FileServiceClient
 | Shared Library | common-lib (Maven module) |
 | DevOps | Docker, Docker Compose |
 | Build | Maven (multi-stage Dockerfiles) |
+| Real-time | Spring WebSocket, STOMP |
+| Orchestration | Kubernetes |
+| CI/CD | Jenkins |
+| Observability | Prometheus, Grafana, Spring Boot Actuator, Micrometer |
 
 ## Getting Started
 
@@ -217,6 +227,47 @@ Set these environment variables in your IntelliJ run configurations:
 - **review-service**: `KAFKA_HOST=host.docker.internal`, `AI_SERVICE_USERNAME=ai-service@codereview.internal`, `AI_SERVICE_PASSWORD=your_password`, `FILE_SERVICE_URL=http://localhost:8082`, `AUTH_SERVICE_URL=http://localhost:8081`
 
 > Note: Stop IntelliJ services before running `docker-compose up` — running both simultaneously splits Kafka consumer group partitions between local and Docker instances.
+
+## Kubernetes Deployment
+
+Application services run in Kubernetes; infrastructure (PostgreSQL, Redis, Kafka, MinIO) stays in Docker Compose. This mirrors production, where stateful systems are typically managed services (RDS, MSK, ElastiCache) rather than self-hosted in-cluster.
+
+```bash
+kubectl apply -f k8s/namespace/
+kubectl apply -f k8s/configmap/
+kubectl apply -f k8s/services/
+kubectl apply -f k8s/monitoring/
+```
+
+Secrets are created imperatively so credentials never enter version control:
+
+```bash
+kubectl create secret generic app-secrets -n codereview \
+  --from-literal=POSTGRES_PASSWORD=... \
+  --from-literal=JWT_SECRET=... \
+  --from-literal=GROQ_API_KEY=...
+```
+
+| Endpoint | URL |
+|----------|-----|
+| API Gateway | http://localhost:30888 |
+| Prometheus | http://localhost:30909 |
+| Grafana | http://localhost:30300 |
+
+## CI/CD
+
+A Jenkins pipeline (`Jenkinsfile`) runs on every build: checkout, Maven build, Docker image build, apply Kubernetes manifests, rolling restart, verify pods.
+
+Triggered manually in local development since Jenkins runs on localhost and GitHub cannot reach it. In production this would be a GitHub webhook on push to main.
+
+## Observability
+
+Each service exposes metrics at `/actuator/prometheus` via Spring Boot Actuator and Micrometer. Prometheus discovers pods automatically using Kubernetes service discovery and pod annotations — new services are picked up without editing scrape config.
+
+Grafana dashboard (`k8s/monitoring/dashboard.json`) tracks:
+- Request rate per service
+- Kafka consumer lag — the key signal that AI analysis is falling behind
+- JVM heap usage per service
 
 ## API Endpoints
 
@@ -352,8 +403,15 @@ code-review-platform/
 ├── common-lib/             ← Shared Maven module
 │   ├── src/
 │   └── pom.xml
-├── docker-compose.yml      ← All 10 containers on crp-network
+├── k8s/                    ← Kubernetes manifests
+│   ├── namespace/
+│   ├── configmap/
+│   ├── services/           ← Deployment + Service per microservice
+│   └── monitoring/         ← Prometheus, Grafana, dashboard config
+├── Jenkinsfile             ← CI/CD pipeline
+├── docker-compose.yml      ← Infrastructure + local full-stack run
 └── .env                    ← Secrets and environment config
+
 ```
 
 ## Author
