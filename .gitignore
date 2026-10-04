@@ -43,3 +43,6 @@ Thumbs.db
 # Spring Boot
 application-local.yml
 application-dev.yml
+
+#Front end
+frontend/.env
